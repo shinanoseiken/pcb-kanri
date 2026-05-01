@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基板案件管理</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f5f0;color:#1a1a1a;min-height:100vh;}
+.header{background:#1a1a1a;color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
+.header h1{font-size:16px;font-weight:500;letter-spacing:.05em;}
+.gmail-status{font-size:12px;color:#9fe1cb;display:flex;align-items:center;gap:6px;}
+.gmail-dot{width:7px;height:7px;border-radius:50%;background:#1d9e75;}
+.tabs{background:#fff;border-bottom:1px solid #e8e8e4;display:flex;padding:0 24px;}
+.tab{font-size:13px;padding:12px 16px;cursor:pointer;color:#888;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;}
+.tab.active{color:#1a1a1a;font-weight:500;border-bottom:2px solid #1a1a1a;}
+.content{padding:24px;max-width:1100px;margin:0 auto;}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.metric{background:#fff;border:1px solid #e8e8e4;border-radius:8px;padding:16px;}
+.metric-label{font-size:11px;color:#888;margin-bottom:6px;}
+.metric-val{font-size:26px;font-weight:500;}
+.card{background:#fff;border:1px solid #e8e8e4;border-radius:8px;padding:20px;margin-bottom:16px;}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.card-title{font-size:14px;font-weight:500;}
+.btn{font-size:12px;padding:6px 14px;border-radius:6px;border:1px solid #e8e8e4;background:#fff;cursor:pointer;font-family:inherit;}
+.btn:hover{background:#f5f5f0;}
+.btn-primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
+.btn-primary:hover{background:#333;}
+.btn-green{background:#0f6e56;color:#fff;border-color:#0f6e56;}
+.btn-green:hover{background:#085041;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{font-size:11px;color:#888;font-weight:500;text-align:left;padding:8px;border-bottom:1px solid #e8e8e4;}
+td{padding:10px 8px;border-bottom:1px solid #f0f0ec;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#fafafa;}
+.badge{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500;display:inline-block;}
+.b-recv{background:#e1f5ee;color:#085041;}
+.b-wait{background:#faeeda;color:#633806;}
+.b-quote{background:#e6f1fb;color:#0c447c;}
+.b-comp{background:#eaf3de;color:#3b6d11;}
+.b-design{background:#eeedfe;color:#3c3489;}
+.b-make{background:#e6f1fb;color:#0c447c;}
+.b-mount{background:#fbeaf0;color:#72243e;}
+.alert{background:#faeeda;border:1px solid #fac775;border-radius:6px;padding:10px 14px;font-size:13px;color:#633806;margin-bottom:16px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+label{font-size:12px;color:#888;display:block;margin-bottom:4px;}
+input,select,textarea{width:100%;font-size:13px;padding:8px 10px;border:1px solid #e8e8e4;border-radius:6px;background:#fff;font-family:inherit;}
+textarea{resize:vertical;min-height:60px;}
+.screen{display:none;}
+.screen.active{display:block;}
+.op-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.op-card{border:1px solid #e8e8e4;border-radius:8px;padding:16px;}
+.op-title{font-size:13px;font-weight:500;margin-bottom:4px;}
+.op-desc{font-size:12px;color:#888;margin-bottom:12px;}
+.generating{color:#888;font-size:13px;padding:12px 0;display:none;}
+.ai-output{background:#f5f5f0;border-radius:6px;padding:14px;font-size:13px;line-height:1.8;margin-top:12px;white-space:pre-wrap;display:none;}
+.mail-subject{font-size:13px;padding:8px 10px;border:1px solid #e8e8e4;border-radius:6px;width:100%;margin-bottom:8px;font-family:inherit;}
+.mail-body{font-size:13px;padding:10px;border:1px solid #e8e8e4;border-radius:6px;width:100%;min-height:200px;resize:vertical;font-family:inherit;}
+.copy-msg{font-size:12px;color:#0f6e56;display:none;margin-left:8px;}
+.empty{text-align:center;padding:32px;color:#888;font-size:13px;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>基板案件管理</h1>
+  <div class="gmail-status"><div class="gmail-dot"></div>Gmail 接続中</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('cases',this)">案件一覧</button>
+  <button class="tab" onclick="showTab('vendors',this)">外注先リスト</button>
+  <button class="tab" onclick="showTab('ops',this)">操作パネル</button>
+</div>
+
+<div class="content">
+
+<!-- 案件一覧 -->
+<div id="screen-cases" class="screen active">
+  <div class="alert" id="main-alert">⚠ もみじテック株式会社：確認メール未送信（納期・実装詳細）</div>
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">対応中</div><div class="metric-val" id="m-recv">0</div></div>
+    <div class="metric"><div class="metric-label">返信待ち</div><div class="metric-val" id="m-wait">0</div></div>
+    <div class="metric"><div class="metric-label">見積依頼中</div><div class="metric-val" id="m-quote">0</div></div>
+    <div class="metric"><div class="metric-label">完了</div><div class="metric-val" id="m-comp">0</div></div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">案件一覧</span>
+      <button class="btn btn-primary" onclick="toggleForm('case-form')">+ 新規案件</button>
+    </div>
+    <div id="case-form" style="display:none;border-top:1px solid #e8e8e4;padding-top:16px;margin-bottom:16px;">
+      <div class="form-row">
+        <div><label>客先会社名</label><input id="c-company" placeholder="例：もみじテック株式会社"></div>
+        <div><label>担当者名</label><input id="c-person" placeholder="例：奥田 様"></div>
+      </div>
+      <div class="form-row-3">
+        <div><label>案件種別</label>
+          <select id="c-type">
+            <option>基板設計</option><option>基板製作</option><option>基板実装</option>
+            <option>設計＋製作</option><option>製作＋実装</option><option>設計＋製作＋実装</option>
+          </select>
+        </div>
+        <div><label>納期</label><input id="c-deadline" type="date"></div>
+        <div><label>ステータス</label>
+          <select id="c-status">
+            <option value="recv">受付済</option>
+            <option value="wait">返信待ち</option>
+            <option value="quote">見積依頼中</option>
+            <option value="comp">完了</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:12px;"><label>メモ・備考</label><textarea id="c-memo" placeholder="不足情報・特記事項など"></textarea></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" onclick="addCase()">登録する</button>
+        <button class="btn" onclick="toggleForm('case-form')">キャンセル</button>
+      </div>
+    </div>
+    <table><thead><tr><th>客先</th><th>担当者</th><th>種別</th><th>納期</th><th>ステータス</th><th>操作</th></tr></thead>
+    <tbody id="case-tbody"></tbody></table>
+  </div>
+</div>
+
+<!-- 外注先リスト -->
+<div id="screen-vendors" class="screen">
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">外注先リスト（<span id="vendor-count">0</span>社登録済み）</span>
+      <button class="btn btn-primary" onclick="toggleForm('vendor-form')">+ 外注先を追加</button>
+    </div>
+    <div id="vendor-form" style="display:none;border-top:1px solid #e8e8e4;padding-top:16px;margin-bottom:16px;">
+      <div class="form-row">
+        <div><label>会社名</label><input id="v-company" placeholder="例：山田電子工業株式会社"></div>
+        <div><label>担当者名</label><input id="v-person" placeholder="例：山田 太郎"></div>
+      </div>
+      <div class="form-row">
+        <div><label>業種</label>
+          <select id="v-type">
+            <option>基板設計</option><option>基板製作</option><option>基板実装</option>
+            <option>設計・製作</option><option>製作・実装</option><option>設計・製作・実装</option>
+          </select>
+        </div>
+        <div><label>メールアドレス</label><input id="v-email" type="email" placeholder="例：yamada@example.co.jp"></div>
+      </div>
+      <div style="margin-bottom:12px;"><label>備考</label><textarea id="v-memo" placeholder="得意分野・注意点など" style="min-height:48px;"></textarea></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" onclick="addVendor()">登録する</button>
+        <button class="btn" onclick="toggleForm('vendor-form')">キャンセル</button>
+      </div>
+    </div>
+    <table><thead><tr><th>会社名</th><th>担当者</th><th>業種</th><th>メールアドレス</th><th>操作</th></tr></thead>
+    <tbody id="vendor-tbody"></tbody></table>
+    <div id="vendor-empty" class="empty">まだ外注先が登録されていません</div>
+  </div>
+</div>
+
+<!-- 操作パネル -->
+<div id="screen-ops" class="screen">
+  <div class="card">
+    <div class="card-title" style="margin-bottom:16px;">メール操作</div>
+    <div class="op-grid">
+      <div class="op-card">
+        <div class="op-title">新着メールを確認</div>
+        <div class="op-desc">Gmailから案件メールを取得・判定</div>
+        <button class="btn btn-green" onclick="runAI('check')">今すぐ確認</button>
+        <div class="generating" id="gen-check">AIが確認中...</div>
+        <div class="ai-output" id="out-check"></div>
+      </div>
+      <div class="op-card">
+        <div class="op-title">確認メール文を生成</div>
+        <div class="op-desc">客先への不足情報確認メールを作成</div>
+        <select id="sel-case" style="margin-bottom:8px;font-size:12px;padding:5px 8px;width:auto;">
+          <option value="">案件を選択...</option>
+        </select><br>
+        <button class="btn btn-primary" onclick="runAI('confirm')">生成する</button>
+        <div class="generating" id="gen-confirm">AIが生成中...</div>
+        <div id="out-confirm" style="display:none;margin-top:12px;">
+          <input class="mail-subject" id="subj-confirm" placeholder="件名">
+          <textarea class="mail-body" id="body-confirm"></textarea>
+          <div style="margin-top:8px;display:flex;align-items:center;">
+            <button class="btn" onclick="copyMail('confirm')">Gmailにコピー</button>
+            <span class="copy-msg" id="copy-confirm">コピーしました！</span>
+          </div>
+        </div>
+      </div>
+      <div class="op-card">
+        <div class="op-title">見積依頼メールを生成</div>
+        <div class="op-desc">外注先向けの見積依頼メールを作成</div>
+        <select id="sel-case2" style="margin-bottom:8px;font-size:12px;padding:5px 8px;width:auto;">
+          <option value="">案件を選択...</option>
+        </select><br>
+        <button class="btn btn-primary" onclick="runAI('estimate')">生成する</button>
+        <div class="generating" id="gen-estimate">AIが生成中...</div>
+        <div id="out-estimate" style="display:none;margin-top:12px;">
+          <input class="mail-subject" id="subj-estimate" placeholder="件名">
+          <textarea class="mail-body" id="body-estimate"></textarea>
+          <div style="margin-top:8px;display:flex;align-items:center;">
+            <button class="btn" onclick="copyMail('estimate')">Gmailにコピー</button>
+            <span class="copy-msg" id="copy-estimate">コピーしました！</span>
+          </div>
+        </div>
+      </div>
+      <div class="op-card">
+        <div class="op-title">見積比較表を生成</div>
+        <div class="op-desc">各外注先の見積金額を一覧比較</div>
+        <button class="btn btn-primary" onclick="runAI('compare')">生成する</button>
+        <div class="generating" id="gen-compare">AIが生成中...</div>
+        <div class="ai-output" id="out-compare"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+let cases=JSON.parse(localStorage.getItem('pcb-cases')||'[{"id":1,"company":"もみじテック株式会社","person":"奥田 様","type":"基板実装","deadline":"","status":"recv","memo":"不足情報：納期・実装詳細"}]');
+let vendors=JSON.parse(localStorage.getItem('pcb-vendors')||'[]');
+
+function save(){localStorage.setItem('pcb-cases',JSON.stringify(cases));localStorage.setItem('pcb-vendors',JSON.stringify(vendors));}
+
+function showTab(t,btn){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('screen-'+t).classList.add('active');
+  btn.classList.add('active');
+  if(t==='ops')updateCaseSelects();
+}
+
+function toggleForm(id){const f=document.getElementById(id);f.style.display=f.style.display==='none'?'block':'none';}
+
+function statusBadge(s){const m={recv:'<span class="badge b-recv">受付済</span>',wait:'<span class="badge b-wait">返信待ち</span>',quote:'<span class="badge b-quote">見積依頼中</span>',comp:'<span class="badge b-comp">完了</span>'};return m[s]||s;}
+
+function typeBadge(t){
+  let r='';
+  if(t.includes('設計'))r+='<span class="badge b-design" style="margin-right:3px;">設計</span>';
+  if(t.includes('製作'))r+='<span class="badge b-make" style="margin-right:3px;">製作</span>';
+  if(t.includes('実装'))r+='<span class="badge b-mount">実装</span>';
+  return r||t;
+}
+
+function renderCases(){
+  const tb=document.getElementById('case-tbody');
+  tb.innerHTML='';
+  if(cases.length===0){tb.innerHTML='<tr><td colspan="6" class="empty">案件がありません</td></tr>';}
+  cases.forEach((c,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="font-weight:500;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td>${statusBadge(c.status)}</td><td><select style="font-size:11px;padding:3px 6px;border:1px solid #e8e8e4;border-radius:4px;" onchange="changeStatus(${i},this.value)"><option value="">変更</option><option value="recv">受付済</option><option value="wait">返信待ち</option><option value="quote">見積依頼中</option><option value="comp">完了</option></select> <button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button></td>`;
+    tb.appendChild(tr);
+  });
+  document.getElementById('m-recv').textContent=cases.filter(c=>c.status==='recv').length;
+  document.getElementById('m-wait').textContent=cases.filter(c=>c.status==='wait').length;
+  document.getElementById('m-quote').textContent=cases.filter(c=>c.status==='quote').length;
+  document.getElementById('m-comp').textContent=cases.filter(c=>c.status==='comp').length;
+  const alerts=cases.filter(c=>c.status==='recv');
+  const al=document.getElementById('main-alert');
+  if(alerts.length>0){al.style.display='block';al.textContent='⚠ 対応中の案件：'+alerts.map(c=>c.company).join('、');}
+  else al.style.display='none';
+}
+
+function addCase(){
+  const co=document.getElementById('c-company').value.trim();
+  if(!co){alert('客先会社名を入力してください');return;}
+  cases.push({id:Date.now(),company:co,person:document.getElementById('c-person').value,type:document.getElementById('c-type').value,deadline:document.getElementById('c-deadline').value,status:document.getElementById('c-status').value,memo:document.getElementById('c-memo').value});
+  save();toggleForm('case-form');
+  ['c-company','c-person','c-deadline','c-memo'].forEach(id=>document.getElementById(id).value='');
+  renderCases();
+}
+
+function changeStatus(i,v){if(!v)return;cases[i].status=v;save();renderCases();}
+function deleteCase(i){if(confirm('削除しますか？')){cases.splice(i,1);save();renderCases();}}
+
+function renderVendors(){
+  const tb=document.getElementById('vendor-tbody');
+  const em=document.getElementById('vendor-empty');
+  document.getElementById('vendor-count').textContent=vendors.length;
+  tb.innerHTML='';
+  if(vendors.length===0){em.style.display='block';return;}
+  em.style.display='none';
+  vendors.forEach((v,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="font-weight:500;">${v.company}</td><td>${v.person}</td><td><span class="badge b-design">${v.type}</span></td><td style="font-size:12px;color:#888;">${v.email}</td><td><button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteVendor(${i})">削除</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function addVendor(){
+  const co=document.getElementById('v-company').value.trim();
+  if(!co){alert('会社名を入力してください');return;}
+  vendors.push({company:co,person:document.getElementById('v-person').value,type:document.getElementById('v-type').value,email:document.getElementById('v-email').value,memo:document.getElementById('v-memo').value});
+  save();toggleForm('vendor-form');
+  ['v-company','v-person','v-email','v-memo'].forEach(id=>document.getElementById(id).value='');
+  renderVendors();
+}
+
+function deleteVendor(i){if(confirm('削除しますか？')){vendors.splice(i,1);save();renderVendors();}}
+
+function updateCaseSelects(){
+  ['sel-case','sel-case2'].forEach(id=>{
+    const s=document.getElementById(id);
+    s.innerHTML='<option value="">案件を選択...</option>';
+    cases.forEach((c,i)=>s.innerHTML+=`<option value="${i}">${c.company}（${c.person}）</option>`);
+  });
+}
+
+async function runAI(type){
+  const genEl=document.getElementById('gen-'+type);
+  genEl.style.display='block';
+
+  let prompt='';
+  const caseList=cases.map(c=>`・${c.company}（${c.person}）種別:${c.type} 納期:${c.deadline||'未定'} ステータス:${c.status} 備考:${c.memo||'なし'}`).join('\n');
+  const vendorList=vendors.map(v=>`・${v.company}（${v.person}）業種:${v.type} Email:${v.email}`).join('\n');
+
+  if(type==='check'){
+    prompt=`あなたは基板案件の受付担当アシスタントです。\n現在の案件一覧:\n${caseList||'なし'}\n\n新着メールの確認結果を報告してください。営業メールは除外し、有効な基板案件があれば不足情報（納期・層数・数量・実装詳細など）をチェックしてください。今は実際のGmailへのアクセスはできないため、現在の案件状況をもとに次のアクションを提案してください。`;
+  } else if(type==='confirm'){
+    const idx=document.getElementById('sel-case').value;
+    if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
+    const c=cases[idx];
+    prompt=`以下の案件について、客先への確認メール文を生成してください。\n\n客先：${c.company}\n担当者：${c.person}\n案件種別：${c.type}\n備考・不足情報：${c.memo||'なし'}\n\n件名と本文を生成してください。形式：\n件名：（件名）\n\n（本文）`;
+  } else if(type==='estimate'){
+    const idx=document.getElementById('sel-case2').value;
+    if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
+    const c=cases[idx];
+    const matchedVendors=vendors.filter(v=>v.type.includes(c.type.replace('基板',''))||c.type.includes(v.type.replace('基板','')));
+    prompt=`以下の案件について、外注先への見積依頼メール文を生成してください。\n\n案件情報：\n客先：${c.company}\n種別：${c.type}\n納期：${c.deadline||'未定'}\n備考：${c.memo||'なし'}\n\n外注先候補：${matchedVendors.length>0?matchedVendors.map(v=>v.company).join('、'):'（外注先を登録してください）'}\n\n件名と本文を生成してください。形式：\n件名：（件名）\n\n（本文）`;
+  } else if(type==='compare'){
+    prompt=`以下の案件と外注先情報をもとに、見積比較表のフォーマットを作成してください。\n\n案件：\n${caseList||'なし'}\n\n外注先：\n${vendorList||'なし'}\n\n各外注先の見積金額を入力できる比較表の形式を提案してください。`;
+  }
+
+  try{
+    const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
+    const data=await res.json();
+    const text=data.content&&data.content[0]?data.content[0].text:'エラーが発生しました';
+
+    if(type==='confirm'||type==='estimate'){
+      const lines=text.split('\n');
+      const subjLine=lines.find(l=>l.startsWith('件名：'));
+      const subj=subjLine?subjLine.replace('件名：','').trim():'';
+      const body=lines.filter(l=>!l.startsWith('件名：')).join('\n').trim();
+      document.getElementById('subj-'+type).value=subj;
+      document.getElementById('body-'+type).value=body;
+      document.getElementById('out-'+type).style.display='block';
+    } else {
+      const out=document.getElementById('out-'+type);
+      out.textContent=text;
+      out.style.display='block';
+    }
+  }catch(e){
+    const out=document.getElementById('out-'+type)||document.getElementById('out-'+type);
+    if(document.getElementById('out-'+type)){
+      document.getElementById('out-'+type).textContent='エラー：'+e.message;
+      document.getElementById('out-'+type).style.display='block';
+    }
+  }
+  genEl.style.display='none';
+}
+
+function copyMail(type){
+  const subj=document.getElementById('subj-'+type).value;
+  const body=document.getElementById('body-'+type).value;
+  navigator.clipboard.writeText('件名：'+subj+'\n\n'+body).catch(()=>{});
+  const msg=document.getElementById('copy-'+type);
+  msg.style.display='inline';
+  setTimeout(()=>msg.style.display='none',3000);
+}
+
+renderCases();
+renderVendors();
+</script>
+</body>
+</html>
