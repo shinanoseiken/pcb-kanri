@@ -28,6 +28,8 @@ body{font-family:'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f5f0;color
 .btn-primary:hover{background:#333;}
 .btn-green{background:#0f6e56;color:#fff;border-color:#0f6e56;}
 .btn-green:hover{background:#085041;}
+.btn-edit{background:#e6f1fb;color:#0c447c;border-color:#b5d4f4;}
+.btn-edit:hover{background:#b5d4f4;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
 th{font-size:11px;color:#888;font-weight:500;text-align:left;padding:8px;border-bottom:1px solid #e8e8e4;}
 td{padding:10px 8px;border-bottom:1px solid #f0f0ec;vertical-align:middle;}
@@ -59,6 +61,11 @@ textarea{resize:vertical;min-height:60px;}
 .mail-body{font-size:13px;padding:10px;border:1px solid #e8e8e4;border-radius:6px;width:100%;min-height:200px;resize:vertical;font-family:inherit;}
 .copy-msg{font-size:12px;color:#0f6e56;display:none;margin-left:8px;}
 .empty{text-align:center;padding:32px;color:#888;font-size:13px;}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;z-index:100;}
+.modal-overlay.active{display:flex;}
+.modal{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:520px;}
+.modal-title{font-size:15px;font-weight:500;margin-bottom:16px;}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
 </style>
 </head>
 <body>
@@ -78,7 +85,7 @@ textarea{resize:vertical;min-height:60px;}
 
 <!-- 案件一覧 -->
 <div id="screen-cases" class="screen active">
-  <div class="alert" id="main-alert">⚠ もみじテック株式会社：確認メール未送信（納期・実装詳細）</div>
+  <div class="alert" id="main-alert"></div>
   <div class="metrics">
     <div class="metric"><div class="metric-label">対応中</div><div class="metric-val" id="m-recv">0</div></div>
     <div class="metric"><div class="metric-label">返信待ち</div><div class="metric-val" id="m-wait">0</div></div>
@@ -150,7 +157,7 @@ textarea{resize:vertical;min-height:60px;}
         <button class="btn" onclick="toggleForm('vendor-form')">キャンセル</button>
       </div>
     </div>
-    <table><thead><tr><th>会社名</th><th>担当者</th><th>業種</th><th>メールアドレス</th><th>操作</th></tr></thead>
+    <table><thead><tr><th>会社名</th><th>担当者</th><th>業種</th><th>メールアドレス</th><th>備考</th><th>操作</th></tr></thead>
     <tbody id="vendor-tbody"></tbody></table>
     <div id="vendor-empty" class="empty">まだ外注先が登録されていません</div>
   </div>
@@ -213,6 +220,32 @@ textarea{resize:vertical;min-height:60px;}
   </div>
 </div>
 
+</div>
+
+<!-- 外注先編集モーダル -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">外注先を編集</div>
+    <input type="hidden" id="edit-idx">
+    <div class="form-row">
+      <div><label>会社名</label><input id="e-company"></div>
+      <div><label>担当者名</label><input id="e-person"></div>
+    </div>
+    <div class="form-row">
+      <div><label>業種</label>
+        <select id="e-type">
+          <option>基板設計</option><option>基板製作</option><option>基板実装</option>
+          <option>設計・製作</option><option>製作・実装</option><option>設計・製作・実装</option>
+        </select>
+      </div>
+      <div><label>メールアドレス</label><input id="e-email" type="email"></div>
+    </div>
+    <div><label>備考</label><textarea id="e-memo" style="min-height:48px;"></textarea></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeEditModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveVendor()">保存する</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -281,7 +314,7 @@ function renderVendors(){
   em.style.display='none';
   vendors.forEach((v,i)=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td style="font-weight:500;">${v.company}</td><td>${v.person}</td><td><span class="badge b-design">${v.type}</span></td><td style="font-size:12px;color:#888;">${v.email}</td><td><button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteVendor(${i})">削除</button></td>`;
+    tr.innerHTML=`<td style="font-weight:500;">${v.company}</td><td>${v.person}</td><td><span class="badge b-design">${v.type}</span></td><td style="font-size:12px;color:#888;">${v.email}</td><td style="font-size:12px;color:#888;max-width:200px;">${v.memo||'—'}</td><td style="white-space:nowrap;"><button class="btn btn-edit" style="font-size:11px;padding:3px 8px;margin-right:4px;" onclick="openEditModal(${i})">編集</button><button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteVendor(${i})">削除</button></td>`;
     tb.appendChild(tr);
   });
 }
@@ -297,6 +330,33 @@ function addVendor(){
 
 function deleteVendor(i){if(confirm('削除しますか？')){vendors.splice(i,1);save();renderVendors();}}
 
+function openEditModal(i){
+  const v=vendors[i];
+  document.getElementById('edit-idx').value=i;
+  document.getElementById('e-company').value=v.company;
+  document.getElementById('e-person').value=v.person;
+  document.getElementById('e-type').value=v.type;
+  document.getElementById('e-email').value=v.email;
+  document.getElementById('e-memo').value=v.memo||'';
+  document.getElementById('edit-modal').classList.add('active');
+}
+
+function closeEditModal(){
+  document.getElementById('edit-modal').classList.remove('active');
+}
+
+function saveVendor(){
+  const i=parseInt(document.getElementById('edit-idx').value);
+  vendors[i]={
+    company:document.getElementById('e-company').value,
+    person:document.getElementById('e-person').value,
+    type:document.getElementById('e-type').value,
+    email:document.getElementById('e-email').value,
+    memo:document.getElementById('e-memo').value
+  };
+  save();closeEditModal();renderVendors();
+}
+
 function updateCaseSelects(){
   ['sel-case','sel-case2'].forEach(id=>{
     const s=document.getElementById(id);
@@ -308,13 +368,11 @@ function updateCaseSelects(){
 async function runAI(type){
   const genEl=document.getElementById('gen-'+type);
   genEl.style.display='block';
-
-  let prompt='';
   const caseList=cases.map(c=>`・${c.company}（${c.person}）種別:${c.type} 納期:${c.deadline||'未定'} ステータス:${c.status} 備考:${c.memo||'なし'}`).join('\n');
   const vendorList=vendors.map(v=>`・${v.company}（${v.person}）業種:${v.type} Email:${v.email}`).join('\n');
-
+  let prompt='';
   if(type==='check'){
-    prompt=`あなたは基板案件の受付担当アシスタントです。\n現在の案件一覧:\n${caseList||'なし'}\n\n新着メールの確認結果を報告してください。営業メールは除外し、有効な基板案件があれば不足情報（納期・層数・数量・実装詳細など）をチェックしてください。今は実際のGmailへのアクセスはできないため、現在の案件状況をもとに次のアクションを提案してください。`;
+    prompt=`あなたは基板案件の受付担当アシスタントです。\n現在の案件一覧:\n${caseList||'なし'}\n\n新着メールの確認結果を報告してください。営業メールは除外し、有効な基板案件があれば不足情報（納期・層数・数量・実装詳細など）をチェックしてください。現在の案件状況をもとに次のアクションを提案してください。`;
   } else if(type==='confirm'){
     const idx=document.getElementById('sel-case').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
@@ -329,12 +387,10 @@ async function runAI(type){
   } else if(type==='compare'){
     prompt=`以下の案件と外注先情報をもとに、見積比較表のフォーマットを作成してください。\n\n案件：\n${caseList||'なし'}\n\n外注先：\n${vendorList||'なし'}\n\n各外注先の見積金額を入力できる比較表の形式を提案してください。`;
   }
-
   try{
     const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
     const data=await res.json();
     const text=data.content&&data.content[0]?data.content[0].text:'エラーが発生しました';
-
     if(type==='confirm'||type==='estimate'){
       const lines=text.split('\n');
       const subjLine=lines.find(l=>l.startsWith('件名：'));
@@ -349,11 +405,8 @@ async function runAI(type){
       out.style.display='block';
     }
   }catch(e){
-    const out=document.getElementById('out-'+type)||document.getElementById('out-'+type);
-    if(document.getElementById('out-'+type)){
-      document.getElementById('out-'+type).textContent='エラー：'+e.message;
-      document.getElementById('out-'+type).style.display='block';
-    }
+    const out=document.getElementById('out-'+type);
+    if(out){out.textContent='エラー：'+e.message;out.style.display='block';}
   }
   genEl.style.display='none';
 }
