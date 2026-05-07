@@ -236,7 +236,39 @@ textarea{resize:vertical;min-height:60px;}
 </div>
 
 </div>
-
+<!-- 案件編集モーダル -->
+<div class="modal-overlay" id="case-edit-modal">
+  <div class="modal">
+    <div class="modal-title">案件を編集</div>
+    <input type="hidden" id="edit-case-idx">
+    <div class="form-row">
+      <div><label>客先会社名</label><input id="ec-company"></div>
+      <div><label>担当者名</label><input id="ec-person"></div>
+    </div>
+    <div class="form-row-3">
+      <div><label>案件種別</label>
+        <select id="ec-type">
+          <option>基板設計</option><option>基板製作</option><option>基板実装</option>
+          <option>設計＋製作</option><option>製作＋実装</option><option>設計＋製作＋実装</option>
+        </select>
+      </div>
+      <div><label>納期</label><input id="ec-deadline" type="date"></div>
+      <div><label>ステータス</label>
+        <select id="ec-status">
+          <option value="recv">受付済</option>
+          <option value="wait">返信待ち</option>
+          <option value="quote">見積依頼中</option>
+          <option value="comp">完了</option>
+        </select>
+      </div>
+    </div>
+    <div><label>メモ・備考</label><textarea id="ec-memo" style="min-height:60px;"></textarea></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="document.getElementById('case-edit-modal').classList.remove('active')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveCaseEdit()">保存する</button>
+    </div>
+  </div>
+</div>
 <!-- 外注先編集モーダル -->
 <div class="modal-overlay" id="edit-modal">
   <div class="modal">
