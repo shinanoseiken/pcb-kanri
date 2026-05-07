@@ -522,7 +522,22 @@ function openEditModal(i){
   document.getElementById('e-memo').value=v.memo||'';
   document.getElementById('edit-modal').classList.add('active');
 }
-
+function openCaseEdit(i){
+  const c=cases[i];
+  document.getElementById('edit-case-idx').value=i;
+  document.getElementById('ec-company').value=c.company;
+  document.getElementById('ec-person').value=c.person;
+  document.getElementById('ec-type').value=c.type;
+  document.getElementById('ec-deadline').value=c.deadline||'';
+  document.getElementById('ec-status').value=c.status;
+  document.getElementById('ec-memo').value=c.memo||'';
+  document.getElementById('case-edit-modal').classList.add('active');
+}
+function saveCaseEdit(){
+  const i=parseInt(document.getElementById('edit-case-idx').value);
+  cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
+  save();document.getElementById('case-edit-modal').classList.remove('active');renderCases();
+}
 function closeEditModal(){document.getElementById('edit-modal').classList.remove('active');}
 
 function saveVendor(){
