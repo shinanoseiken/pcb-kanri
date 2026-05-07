@@ -375,7 +375,6 @@ async function checkGmail() {
   outEl.style.display = 'none';
 
   try {
-    // 最新10件のメールIDを取得
     const listRes = await fetch(
       'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
       { headers: { Authorization: 'Bearer ' + accessToken } }
@@ -384,13 +383,12 @@ async function checkGmail() {
     const messages = listData.messages || [];
 
     if (messages.length === 0) {
-      outEl.textContent = '未読メールはありません。';
+      outEl.textContent = 'メールはありません。';
       outEl.style.display = 'block';
       genEl.style.display = 'none';
       return;
     }
 
-    // 最初の5件の件名・送信者を取得
     const details = await Promise.all(messages.slice(0, 5).map(async (m) => {
       const r = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`,
@@ -400,21 +398,71 @@ async function checkGmail() {
       const headers = d.payload.headers;
       const subject = headers.find(h => h.name === 'Subject')?.value || '（件名なし）';
       const from = headers.find(h => h.name === 'From')?.value || '（不明）';
-      return `・${from}\n  件名: ${subject}`;
+      return { from, subject };
     }));
 
-    // AIで案件判定
-    const prompt = `以下は最新の未読メール一覧です。基板案件に関係しそうなメールがあれば指摘し、対応すべきアクションを提案してください。\n\n${details.join('\n\n')}`;
+    const mailText = details.map(d => `・${d.from}\n  件名: ${d.subject}`).join('\n\n');
+
+    const prompt = `以下のメール一覧から基板案件に関係するメールを判定してください。
+案件関連メールがあれば、以下のJSON形式で返してください。関係ないメールは無視してください。
+必ずJSON配列のみを返し、説明文は不要です。
+
+メール一覧：
+${mailText}
+
+出力形式（JSON配列）：
+[
+  {
+    "company": "会社名",
+    "person": "担当者名（不明なら空）",
+    "type": "基板設計 or 基板製作 or 基板実装",
+    "memo": "メールから読み取れる情報",
+    "from": "送信者メールアドレス",
+    "subject": "件名"
+  }
+]
+
+案件関連メールがない場合は空配列 [] を返してください。`;
+
     const aiRes = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt })
     });
     const aiData = await aiRes.json();
-    const aiText = aiData.content?.[0]?.text || '判定できませんでした。';
+    const aiText = aiData.content?.[0]?.text || '[]';
 
-    outEl.textContent = `【未読メール ${messages.length}件】\n\n${details.join('\n\n')}\n\n【AI判定】\n${aiText}`;
+    let candidates = [];
+    try {
+      const clean = aiText.replace(/```json|```/g, '').trim();
+      candidates = JSON.parse(clean);
+    } catch(e) {
+      candidates = [];
+    }
+
+    if (candidates.length === 0) {
+      outEl.innerHTML = `<div style="margin-bottom:8px;">【確認済み ${details.length}件】案件関連メールは見つかりませんでした。</div>`;
+      outEl.style.display = 'block';
+      genEl.style.display = 'none';
+      return;
+    }
+
+    let html = `<div style="margin-bottom:12px;">【案件候補 ${candidates.length}件 見つかりました】</div>`;
+    candidates.forEach((c, i) => {
+      html += `
+        <div style="border:1px solid #b5d4f4;border-radius:8px;padding:12px;margin-bottom:10px;background:#f0f7ff;">
+          <div style="font-size:13px;font-weight:500;margin-bottom:6px;">📧 ${c.subject}</div>
+          <div style="font-size:12px;color:#555;margin-bottom:4px;">送信者: ${c.from}</div>
+          <div style="font-size:12px;color:#555;margin-bottom:4px;">会社名: ${c.company || '不明'}</div>
+          <div style="font-size:12px;color:#555;margin-bottom:4px;">種別: ${c.type}</div>
+          <div style="font-size:12px;color:#555;margin-bottom:8px;">メモ: ${c.memo}</div>
+          <button class="btn btn-primary" style="font-size:12px;" onclick="registerCaseFromMail(${i})">この内容で案件登録する</button>
+        </div>`;
+    });
+    outEl.innerHTML = html;
     outEl.style.display = 'block';
+    window._mailCandidates = candidates;
+
   } catch(e) {
     outEl.textContent = 'エラー: ' + e.message;
     outEl.style.display = 'block';
@@ -422,6 +470,21 @@ async function checkGmail() {
   genEl.style.display = 'none';
 }
 
+function registerCaseFromMail(i) {
+  const c = window._mailCandidates[i];
+  cases.push({
+    id: Date.now(),
+    company: c.company || '（要確認）',
+    person: c.person || '',
+    type: c.type || '基板設計',
+    deadline: '',
+    status: 'recv',
+    memo: c.memo || ''
+  });
+  save();
+  renderCases();
+  alert(`「${c.company}」を案件一覧に登録しました！`);
+}
 // Gmail下書き保存
 async function saveDraft(type) {
   if (!accessToken) {
