@@ -1,3 +1,6 @@
+では以下のコードを全部コピーして貼り付けてください。
+
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -43,7 +46,7 @@ tr:hover td{background:#fafafa;}
 .b-design{background:#eeedfe;color:#3c3489;}
 .b-make{background:#e6f1fb;color:#0c447c;}
 .b-mount{background:#fbeaf0;color:#72243e;}
-.alert{background:#faeeda;border:1px solid #fac775;border-radius:6px;padding:10px 14px;font-size:13px;color:#633806;margin-bottom:16px;}
+.alert{background:#faeeda;border:1px solid #fac775;border-radius:6px;padding:10px 14px;font-size:13px;color:#633806;margin-bottom:16px;display:none;}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
 .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
 label{font-size:12px;color:#888;display:block;margin-bottom:4px;}
@@ -57,6 +60,7 @@ textarea{resize:vertical;min-height:60px;}
 .op-desc{font-size:12px;color:#888;margin-bottom:12px;}
 .generating{color:#888;font-size:13px;padding:12px 0;display:none;}
 .ai-output{background:#f5f5f0;border-radius:6px;padding:14px;font-size:13px;line-height:1.8;margin-top:12px;white-space:pre-wrap;display:none;}
+.mail-area{display:none;margin-top:12px;}
 .mail-subject{font-size:13px;padding:8px 10px;border:1px solid #e8e8e4;border-radius:6px;width:100%;margin-bottom:8px;font-family:inherit;}
 .mail-body{font-size:13px;padding:10px;border:1px solid #e8e8e4;border-radius:6px;width:100%;min-height:200px;resize:vertical;font-family:inherit;}
 .copy-msg{font-size:12px;color:#0f6e56;display:none;margin-left:8px;}
@@ -183,7 +187,7 @@ textarea{resize:vertical;min-height:60px;}
         </select><br>
         <button class="btn btn-primary" onclick="runAI('confirm')">生成する</button>
         <div class="generating" id="gen-confirm">AIが生成中...</div>
-        <div id="out-confirm" style="display:none;margin-top:12px;">
+        <div class="mail-area" id="out-confirm">
           <input class="mail-subject" id="subj-confirm" placeholder="件名">
           <textarea class="mail-body" id="body-confirm"></textarea>
           <div style="margin-top:8px;display:flex;align-items:center;">
@@ -200,7 +204,7 @@ textarea{resize:vertical;min-height:60px;}
         </select><br>
         <button class="btn btn-primary" onclick="runAI('estimate')">生成する</button>
         <div class="generating" id="gen-estimate">AIが生成中...</div>
-        <div id="out-estimate" style="display:none;margin-top:12px;">
+        <div class="mail-area" id="out-estimate">
           <input class="mail-subject" id="subj-estimate" placeholder="件名">
           <textarea class="mail-body" id="body-estimate"></textarea>
           <div style="margin-top:8px;display:flex;align-items:center;">
@@ -341,19 +345,11 @@ function openEditModal(i){
   document.getElementById('edit-modal').classList.add('active');
 }
 
-function closeEditModal(){
-  document.getElementById('edit-modal').classList.remove('active');
-}
+function closeEditModal(){document.getElementById('edit-modal').classList.remove('active');}
 
 function saveVendor(){
   const i=parseInt(document.getElementById('edit-idx').value);
-  vendors[i]={
-    company:document.getElementById('e-company').value,
-    person:document.getElementById('e-person').value,
-    type:document.getElementById('e-type').value,
-    email:document.getElementById('e-email').value,
-    memo:document.getElementById('e-memo').value
-  };
+  vendors[i]={company:document.getElementById('e-company').value,person:document.getElementById('e-person').value,type:document.getElementById('e-type').value,email:document.getElementById('e-email').value,memo:document.getElementById('e-memo').value};
   save();closeEditModal();renderVendors();
 }
 
@@ -368,56 +364,62 @@ function updateCaseSelects(){
 async function runAI(type){
   const genEl=document.getElementById('gen-'+type);
   genEl.style.display='block';
+  const outEl=document.getElementById('out-'+type);
+  if(outEl)outEl.style.display='none';
+
   const caseList=cases.map(c=>`・${c.company}（${c.person}）種別:${c.type} 納期:${c.deadline||'未定'} ステータス:${c.status} 備考:${c.memo||'なし'}`).join('\n');
   const vendorList=vendors.map(v=>`・${v.company}（${v.person}）業種:${v.type} Email:${v.email}`).join('\n');
   let prompt='';
+
   if(type==='check'){
-    prompt=`あなたは基板案件の受付担当アシスタントです。\n現在の案件一覧:\n${caseList||'なし'}\n\n新着メールの確認結果を報告してください。営業メールは除外し、有効な基板案件があれば不足情報（納期・層数・数量・実装詳細など）をチェックしてください。現在の案件状況をもとに次のアクションを提案してください。`;
+    prompt=`あなたは基板案件の受付担当アシスタントです。現在の案件一覧:\n${caseList||'なし'}\n\n現在の案件状況をもとに次のアクションを提案してください。`;
   } else if(type==='confirm'){
     const idx=document.getElementById('sel-case').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
-    const c=cases[idx];
-    prompt=`以下の案件について、客先への確認メール文を生成してください。\n\n客先：${c.company}\n担当者：${c.person}\n案件種別：${c.type}\n備考・不足情報：${c.memo||'なし'}\n\n件名と本文を生成してください。形式：\n件名：（件名）\n\n（本文）`;
+    const c=cases[parseInt(idx)];
+    prompt=`以下の案件について、客先への確認メール文を生成してください。\n\n客先：${c.company}\n担当者：${c.person}\n案件種別：${c.type}\n備考・不足情報：${c.memo||'なし'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文をここに）`;
   } else if(type==='estimate'){
     const idx=document.getElementById('sel-case2').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
-    const c=cases[idx];
+    const c=cases[parseInt(idx)];
     const matchedVendors=vendors.filter(v=>v.type.includes(c.type.replace('基板',''))||c.type.includes(v.type.replace('基板','')));
-    prompt=`以下の案件について、外注先への見積依頼メール文を生成してください。\n\n案件情報：\n客先：${c.company}\n種別：${c.type}\n納期：${c.deadline||'未定'}\n備考：${c.memo||'なし'}\n\n外注先候補：${matchedVendors.length>0?matchedVendors.map(v=>v.company).join('、'):'（外注先を登録してください）'}\n\n件名と本文を生成してください。形式：\n件名：（件名）\n\n（本文）`;
+    prompt=`以下の案件について、外注先への見積依頼メール文を生成してください。\n\n客先：${c.company}\n種別：${c.type}\n納期：${c.deadline||'未定'}\n備考：${c.memo||'なし'}\n外注先候補：${matchedVendors.length>0?matchedVendors.map(v=>v.company).join('、'):'（外注先を登録してください）'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文をここに）`;
   } else if(type==='compare'){
-    prompt=`以下の案件と外注先情報をもとに、見積比較表のフォーマットを作成してください。\n\n案件：\n${caseList||'なし'}\n\n外注先：\n${vendorList||'なし'}\n\n各外注先の見積金額を入力できる比較表の形式を提案してください。`;
+    prompt=`以下の案件と外注先情報をもとに、見積比較表のフォーマットを作成してください。\n\n案件：\n${caseList||'なし'}\n\n外注先：\n${vendorList||'なし'}`;
   }
+
   try{
     const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
     const data=await res.json();
-    const text=data.content&&data.content[0]?data.content[0].text:'エラーが発生しました';
+    const text=data.content&&data.content[0]?data.content[0].text:'レスポンスが空です';
+
     if(type==='confirm'||type==='estimate'){
       const lines=text.split('\n');
-      const subjLine=lines.find(l=>l.startsWith('件名：'));
-      const subj=subjLine?subjLine.replace('件名：','').trim():'';
-      const body=lines.filter(l=>!l.startsWith('件名：')).join('\n').trim();
-      document.getElementById('subj-'+type).value=subj;
-      document.getElementById('body-'+type).value=body;
-      document.getElementById('out-'+type).style.display='block';
+      const subjLine=lines.find(l=>l.startsWith('件名：')||l.startsWith('件名:'));
+      const subj=subjLine?(subjLine.replace('件名：','').replace('件名:','')).trim():'';
+      const body=lines.filter(l=>!l.startsWith('件名：')&&!l.startsWith('件名:')).join('\n').trim();
+      const subjEl=document.getElementById('subj-'+type);
+      const bodyEl=document.getElementById('body-'+type);
+      if(subjEl)subjEl.value=subj;
+      if(bodyEl)bodyEl.value=body;
+      if(outEl)outEl.style.display='block';
     } else {
-      const out=document.getElementById('out-'+type);
-      out.textContent=text;
-      out.style.display='block';
+      if(outEl){outEl.textContent=text;outEl.style.display='block';}
     }
   }catch(e){
-    const out=document.getElementById('out-'+type);
-    if(out){out.textContent='エラー：'+e.message;out.style.display='block';}
+    if(outEl){outEl.textContent='エラー：'+e.message;outEl.style.display='block';}
   }
   genEl.style.display='none';
 }
 
 function copyMail(type){
-  const subj=document.getElementById('subj-'+type).value;
-  const body=document.getElementById('body-'+type).value;
-  navigator.clipboard.writeText('件名：'+subj+'\n\n'+body).catch(()=>{});
-  const msg=document.getElementById('copy-'+type);
-  msg.style.display='inline';
-  setTimeout(()=>msg.style.display='none',3000);
+  const subj=document.getElementById('subj-'+type);
+  const body=document.getElementById('body-'+type);
+  if(subj&&body){
+    navigator.clipboard.writeText('件名：'+subj.value+'\n\n'+body.value).catch(()=>{});
+    const msg=document.getElementById('copy-'+type);
+    if(msg){msg.style.display='inline';setTimeout(()=>msg.style.display='none',3000);}
+  }
 }
 
 renderCases();
@@ -425,3 +427,6 @@ renderVendors();
 </script>
 </body>
 </html>
+```
+
+貼り付けできたら「Commit changes...」をクリックしてください！
