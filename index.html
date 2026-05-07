@@ -1,6 +1,3 @@
-では以下のコードを全部コピーして貼り付けてください。
-
-```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -12,8 +9,11 @@
 body{font-family:'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f5f0;color:#1a1a1a;min-height:100vh;}
 .header{background:#1a1a1a;color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
 .header h1{font-size:16px;font-weight:500;letter-spacing:.05em;}
-.gmail-status{font-size:12px;color:#9fe1cb;display:flex;align-items:center;gap:6px;}
+.gmail-status{font-size:12px;color:#9fe1cb;display:flex;align-items:center;gap:8px;}
 .gmail-dot{width:7px;height:7px;border-radius:50%;background:#1d9e75;}
+.gmail-dot.disconnected{background:#888;}
+.btn-gmail-login{font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid #9fe1cb;background:transparent;color:#9fe1cb;cursor:pointer;}
+.btn-gmail-login:hover{background:#9fe1cb;color:#1a1a1a;}
 .tabs{background:#fff;border-bottom:1px solid #e8e8e4;display:flex;padding:0 24px;}
 .tab{font-size:13px;padding:12px 16px;cursor:pointer;color:#888;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;}
 .tab.active{color:#1a1a1a;font-weight:500;border-bottom:2px solid #1a1a1a;}
@@ -70,13 +70,20 @@ textarea{resize:vertical;min-height:60px;}
 .modal{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:520px;}
 .modal-title{font-size:15px;font-weight:500;margin-bottom:16px;}
 .modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+.gmail-info{font-size:12px;color:#888;margin-top:8px;}
+.btn-save-draft{background:#1a73e8;color:#fff;border-color:#1a73e8;margin-left:8px;}
+.btn-save-draft:hover{background:#1557b0;}
 </style>
 </head>
 <body>
 
 <div class="header">
   <h1>基板案件管理</h1>
-  <div class="gmail-status"><div class="gmail-dot"></div>Gmail 接続中</div>
+  <div class="gmail-status">
+    <div class="gmail-dot disconnected" id="gmail-dot"></div>
+    <span id="gmail-status-text">Gmail 未接続</span>
+    <button class="btn-gmail-login" id="gmail-login-btn" onclick="gmailLogin()">Googleでログイン</button>
+  </div>
 </div>
 
 <div class="tabs">
@@ -175,8 +182,8 @@ textarea{resize:vertical;min-height:60px;}
       <div class="op-card">
         <div class="op-title">新着メールを確認</div>
         <div class="op-desc">Gmailから案件メールを取得・判定</div>
-        <button class="btn btn-green" onclick="runAI('check')">今すぐ確認</button>
-        <div class="generating" id="gen-check">AIが確認中...</div>
+        <button class="btn btn-green" onclick="checkGmail()">今すぐ確認</button>
+        <div class="generating" id="gen-check">メールを確認中...</div>
         <div class="ai-output" id="out-check"></div>
       </div>
       <div class="op-card">
@@ -190,9 +197,11 @@ textarea{resize:vertical;min-height:60px;}
         <div class="mail-area" id="out-confirm">
           <input class="mail-subject" id="subj-confirm" placeholder="件名">
           <textarea class="mail-body" id="body-confirm"></textarea>
-          <div style="margin-top:8px;display:flex;align-items:center;">
-            <button class="btn" onclick="copyMail('confirm')">Gmailにコピー</button>
+          <div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+            <button class="btn" onclick="copyMail('confirm')">クリップボードにコピー</button>
+            <button class="btn btn-save-draft" onclick="saveDraft('confirm')">Gmailに下書き保存</button>
             <span class="copy-msg" id="copy-confirm">コピーしました！</span>
+            <span class="copy-msg" id="draft-confirm">下書き保存しました！</span>
           </div>
         </div>
       </div>
@@ -207,9 +216,11 @@ textarea{resize:vertical;min-height:60px;}
         <div class="mail-area" id="out-estimate">
           <input class="mail-subject" id="subj-estimate" placeholder="件名">
           <textarea class="mail-body" id="body-estimate"></textarea>
-          <div style="margin-top:8px;display:flex;align-items:center;">
-            <button class="btn" onclick="copyMail('estimate')">Gmailにコピー</button>
+          <div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+            <button class="btn" onclick="copyMail('estimate')">クリップボードにコピー</button>
+            <button class="btn btn-save-draft" onclick="saveDraft('estimate')">Gmailに下書き保存</button>
             <span class="copy-msg" id="copy-estimate">コピーしました！</span>
+            <span class="copy-msg" id="draft-estimate">下書き保存しました！</span>
           </div>
         </div>
       </div>
@@ -252,11 +263,178 @@ textarea{resize:vertical;min-height:60px;}
   </div>
 </div>
 
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
 <script>
+const CLIENT_ID = '841351927286-7i7dubim99fuv5h58o8a6ukcoae2mtkg.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose';
+
+let accessToken = null;
+let tokenClient = null;
+
 let cases=JSON.parse(localStorage.getItem('pcb-cases')||'[{"id":1,"company":"もみじテック株式会社","person":"奥田 様","type":"基板実装","deadline":"","status":"recv","memo":"不足情報：納期・実装詳細"}]');
 let vendors=JSON.parse(localStorage.getItem('pcb-vendors')||'[]');
 
 function save(){localStorage.setItem('pcb-cases',JSON.stringify(cases));localStorage.setItem('pcb-vendors',JSON.stringify(vendors));}
+
+// Gmail OAuth
+function initGoogleAuth() {
+  if (typeof google === 'undefined') {
+    setTimeout(initGoogleAuth, 500);
+    return;
+  }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (response) => {
+      if (response.error) {
+        alert('ログインに失敗しました: ' + response.error);
+        return;
+      }
+      accessToken = response.access_token;
+      setGmailConnected(true);
+    },
+  });
+}
+
+function gmailLogin() {
+  if (!tokenClient) {
+    alert('Googleの認証ライブラリを読み込み中です。少し待ってから再試行してください。');
+    return;
+  }
+  tokenClient.requestAccessToken();
+}
+
+function setGmailConnected(connected) {
+  const dot = document.getElementById('gmail-dot');
+  const text = document.getElementById('gmail-status-text');
+  const btn = document.getElementById('gmail-login-btn');
+  if (connected) {
+    dot.classList.remove('disconnected');
+    text.textContent = 'Gmail 接続中';
+    btn.textContent = 'ログアウト';
+    btn.onclick = gmailLogout;
+  } else {
+    dot.classList.add('disconnected');
+    text.textContent = 'Gmail 未接続';
+    btn.textContent = 'Googleでログイン';
+    btn.onclick = gmailLogin;
+  }
+}
+
+function gmailLogout() {
+  if (accessToken) {
+    google.accounts.oauth2.revoke(accessToken);
+    accessToken = null;
+  }
+  setGmailConnected(false);
+}
+
+// Gmail新着確認
+async function checkGmail() {
+  if (!accessToken) {
+    alert('先にGoogleでログインしてください。');
+    return;
+  }
+  const genEl = document.getElementById('gen-check');
+  const outEl = document.getElementById('out-check');
+  genEl.style.display = 'block';
+  outEl.style.display = 'none';
+
+  try {
+    // 最新10件のメールIDを取得
+    const listRes = await fetch(
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:unread',
+      { headers: { Authorization: 'Bearer ' + accessToken } }
+    );
+    const listData = await listRes.json();
+    const messages = listData.messages || [];
+
+    if (messages.length === 0) {
+      outEl.textContent = '未読メールはありません。';
+      outEl.style.display = 'block';
+      genEl.style.display = 'none';
+      return;
+    }
+
+    // 最初の5件の件名・送信者を取得
+    const details = await Promise.all(messages.slice(0, 5).map(async (m) => {
+      const r = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`,
+        { headers: { Authorization: 'Bearer ' + accessToken } }
+      );
+      const d = await r.json();
+      const headers = d.payload.headers;
+      const subject = headers.find(h => h.name === 'Subject')?.value || '（件名なし）';
+      const from = headers.find(h => h.name === 'From')?.value || '（不明）';
+      return `・${from}\n  件名: ${subject}`;
+    }));
+
+    // AIで案件判定
+    const prompt = `以下は最新の未読メール一覧です。基板案件に関係しそうなメールがあれば指摘し、対応すべきアクションを提案してください。\n\n${details.join('\n\n')}`;
+    const aiRes = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const aiData = await aiRes.json();
+    const aiText = aiData.content?.[0]?.text || '判定できませんでした。';
+
+    outEl.textContent = `【未読メール ${messages.length}件】\n\n${details.join('\n\n')}\n\n【AI判定】\n${aiText}`;
+    outEl.style.display = 'block';
+  } catch(e) {
+    outEl.textContent = 'エラー: ' + e.message;
+    outEl.style.display = 'block';
+  }
+  genEl.style.display = 'none';
+}
+
+// Gmail下書き保存
+async function saveDraft(type) {
+  if (!accessToken) {
+    alert('先にGoogleでログインしてください。');
+    return;
+  }
+  const subj = document.getElementById('subj-' + type).value;
+  const body = document.getElementById('body-' + type).value;
+  if (!subj && !body) {
+    alert('先にメールを生成してください。');
+    return;
+  }
+
+  const email = [
+    'Content-Type: text/plain; charset="UTF-8"',
+    'MIME-Version: 1.0',
+    `Subject: =?utf-8?B?${btoa(unescape(encodeURIComponent(subj)))}?=`,
+    '',
+    body
+  ].join('\n');
+
+  const encoded = btoa(unescape(encodeURIComponent(email)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  try {
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ message: { raw: encoded } })
+    });
+    if (res.ok) {
+      const msg = document.getElementById('draft-' + type);
+      msg.style.display = 'inline';
+      setTimeout(() => msg.style.display = 'none', 3000);
+    } else {
+      const err = await res.json();
+      alert('下書き保存に失敗しました: ' + JSON.stringify(err));
+    }
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  }
+}
 
 function showTab(t,btn){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -371,9 +549,7 @@ async function runAI(type){
   const vendorList=vendors.map(v=>`・${v.company}（${v.person}）業種:${v.type} Email:${v.email}`).join('\n');
   let prompt='';
 
-  if(type==='check'){
-    prompt=`あなたは基板案件の受付担当アシスタントです。現在の案件一覧:\n${caseList||'なし'}\n\n現在の案件状況をもとに次のアクションを提案してください。`;
-  } else if(type==='confirm'){
+  if(type==='confirm'){
     const idx=document.getElementById('sel-case').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
     const c=cases[parseInt(idx)];
@@ -398,10 +574,8 @@ async function runAI(type){
       const subjLine=lines.find(l=>l.startsWith('件名：')||l.startsWith('件名:'));
       const subj=subjLine?(subjLine.replace('件名：','').replace('件名:','')).trim():'';
       const body=lines.filter(l=>!l.startsWith('件名：')&&!l.startsWith('件名:')).join('\n').trim();
-      const subjEl=document.getElementById('subj-'+type);
-      const bodyEl=document.getElementById('body-'+type);
-      if(subjEl)subjEl.value=subj;
-      if(bodyEl)bodyEl.value=body;
+      document.getElementById('subj-'+type).value=subj;
+      document.getElementById('body-'+type).value=body;
       if(outEl)outEl.style.display='block';
     } else {
       if(outEl){outEl.textContent=text;outEl.style.display='block';}
@@ -424,9 +598,7 @@ function copyMail(type){
 
 renderCases();
 renderVendors();
+initGoogleAuth();
 </script>
 </body>
 </html>
-```
-
-貼り付けできたら「Commit changes...」をクリックしてください！
