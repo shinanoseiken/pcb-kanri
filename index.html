@@ -64,7 +64,6 @@ textarea{resize:vertical;min-height:60px;}
 .op-desc{font-size:12px;color:#888;margin-bottom:10px;}
 .generating{color:#888;font-size:13px;padding:12px 0;display:none;}
 .ai-output{background:#f5f5f0;border-radius:6px;padding:14px;font-size:13px;line-height:1.8;margin-top:12px;white-space:pre-wrap;display:none;}
-#out-check{background:transparent;padding:4px 0;}
 .mail-area{display:none;margin-top:12px;}
 .mail-subject{font-size:13px;padding:8px 10px;border:1px solid #e8e8e4;border-radius:6px;width:100%;margin-bottom:8px;font-family:inherit;}
 .mail-body{font-size:13px;padding:10px;border:1px solid #e8e8e4;border-radius:6px;width:100%;min-height:200px;resize:vertical;font-family:inherit;}
@@ -116,10 +115,6 @@ textarea{resize:vertical;min-height:60px;}
       <div class="form-row">
         <div><label>客先会社名</label><input id="c-company" placeholder="例：もみじテック株式会社"></div>
         <div><label>担当者名</label><input id="c-person" placeholder="例：奥田 様"></div>
-      </div>
-      <div class="form-row">
-        <div><label>客先メールアドレス</label><input id="c-email" type="email" placeholder="例：okuda@example.co.jp"></div>
-        <div></div>
       </div>
       <div class="form-row-3">
         <div><label>案件種別</label>
@@ -192,7 +187,7 @@ textarea{resize:vertical;min-height:60px;}
         <div class="op-desc">Gmailから案件メールを取得・判定</div>
         <button class="btn btn-green" onclick="checkGmail()">今すぐ確認</button>
         <div class="generating" id="gen-check">メールを確認中...</div>
-        <div id="out-check" style="margin-top:8px;"></div>
+        <div class="ai-output" id="out-check"></div>
       </div>
       <div class="op-card">
         <div class="op-title">確認メール文を生成</div>
@@ -203,12 +198,13 @@ textarea{resize:vertical;min-height:60px;}
         <button class="btn btn-primary" onclick="runAI('confirm')">生成する</button>
         <div class="generating" id="gen-confirm">AIが生成中...</div>
         <div class="mail-area" id="out-confirm">
-          <div style="margin-bottom:6px;"><label style="font-size:11px;color:#888;">宛先（To）</label><input id="to-confirm" type="email" placeholder="自動入力されます" style="font-size:12px;padding:5px 8px;"></div>
-          <div style="margin-bottom:6px;"><label style="font-size:11px;color:#888;">CC（任意）</label><input id="cc-confirm" type="email" placeholder="cc@example.com" style="font-size:12px;padding:5px 8px;"></div>
           <input class="mail-subject" id="subj-confirm" placeholder="件名">
           <textarea class="mail-body" id="body-confirm"></textarea>
+          <!-- ② flex折り返しでボタンはみ出し防止 -->
           <div class="op-btns">
+            <button class="btn" onclick="copyMail('confirm')">クリップボードにコピー</button>
             <button class="btn btn-save-draft" onclick="saveDraft('confirm')">Gmailに下書き保存</button>
+            <span class="copy-msg" id="copy-confirm">コピーしました！</span>
             <span class="copy-msg" id="draft-confirm">下書き保存しました！</span>
           </div>
         </div>
@@ -222,12 +218,13 @@ textarea{resize:vertical;min-height:60px;}
         <button class="btn btn-primary" onclick="runAI('estimate')">生成する</button>
         <div class="generating" id="gen-estimate">AIが生成中...</div>
         <div class="mail-area" id="out-estimate">
-          <div style="margin-bottom:6px;"><label style="font-size:11px;color:#888;">宛先（To）</label><input id="to-estimate" type="email" placeholder="自動入力されます" style="font-size:12px;padding:5px 8px;"></div>
-          <div style="margin-bottom:6px;"><label style="font-size:11px;color:#888;">CC（任意）</label><input id="cc-estimate" type="email" placeholder="cc@example.com" style="font-size:12px;padding:5px 8px;"></div>
           <input class="mail-subject" id="subj-estimate" placeholder="件名">
           <textarea class="mail-body" id="body-estimate"></textarea>
+          <!-- ② flex折り返しでボタンはみ出し防止 -->
           <div class="op-btns">
+            <button class="btn" onclick="copyMail('estimate')">クリップボードにコピー</button>
             <button class="btn btn-save-draft" onclick="saveDraft('estimate')">Gmailに下書き保存</button>
+            <span class="copy-msg" id="copy-estimate">コピーしました！</span>
             <span class="copy-msg" id="draft-estimate">下書き保存しました！</span>
           </div>
         </div>
@@ -253,10 +250,6 @@ textarea{resize:vertical;min-height:60px;}
     <div class="form-row">
       <div><label>客先会社名</label><input id="ec-company"></div>
       <div><label>担当者名</label><input id="ec-person"></div>
-    </div>
-    <div class="form-row">
-      <div><label>客先メールアドレス</label><input id="ec-email" type="email"></div>
-      <div></div>
     </div>
     <div class="form-row-3">
       <div><label>案件種別</label>
@@ -406,14 +399,16 @@ async function checkGmail() {
 
     const details = await Promise.all(messages.slice(0, 5).map(async (m) => {
       const r = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`,
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Cc&metadataHeaders=Reply-To`,
         { headers: { Authorization: 'Bearer ' + accessToken } }
       );
       const d = await r.json();
       const headers = d.payload.headers;
       const subject = headers.find(h => h.name === 'Subject')?.value || '（件名なし）';
       const from = headers.find(h => h.name === 'From')?.value || '（不明）';
-      return { from, subject };
+      const cc = headers.find(h => h.name === 'Cc')?.value || '';
+      const replyTo = headers.find(h => h.name === 'Reply-To')?.value || '';
+      return { from, subject, cc, replyTo };
     }));
 
     const mailText = details.map(d => `・${d.from}\n  件名: ${d.subject}`).join('\n\n');
@@ -460,7 +455,7 @@ ${mailText}
       );
       const rawFrom = matched ? matched.from : c.from;
       const senderName = extractSenderName(rawFrom);
-      return { ...c, senderName, rawFrom };
+      return { ...c, senderName, rawFrom, rawCc: matched?.cc || '', rawReplyTo: matched?.replyTo || '' };
     });
 
     if (candidates.length === 0) {
@@ -518,12 +513,16 @@ function toggleCandidate(i) {
 
 function registerCaseFromMail(i) {
   const c = window._mailCandidates[i];
-  // ③ 担当者：AI抽出person → Fromの表示名 → メールのローカルパート
   const personName = c.person || c.senderName || c.from.split('@')[0];
+  // Reply-To優先、なければFromのアドレス部分を抽出
+  const rawAddr = c.rawReplyTo || c.rawFrom || '';
+  const emailAddr = rawAddr.match(/<([^>]+)>/) ? rawAddr.match(/<([^>]+)>/)[1] : (c.from || '');
   cases.push({
     id: Date.now(),
     company: c.company || '（要確認）',
     person: personName,
+    email: emailAddr,
+    cc: c.rawCc || '',
     type: c.type || '基板設計',
     deadline: '',
     status: 'recv',
@@ -539,18 +538,16 @@ async function saveDraft(type) {
   const subj = document.getElementById('subj-' + type).value;
   const body = document.getElementById('body-' + type).value;
   if (!subj && !body) { alert('先にメールを生成してください。'); return; }
-  const toVal = document.getElementById('to-' + type) ? document.getElementById('to-' + type).value : '';
-  const ccVal = document.getElementById('cc-' + type) ? document.getElementById('cc-' + type).value : '';
 
-  const lines = ['Content-Type: text/plain; charset="UTF-8"', 'MIME-Version: 1.0'];
-  if (toVal) lines.push('To: ' + toVal);
-  if (ccVal) lines.push('Cc: ' + ccVal);
-  lines.push(`Subject: =?utf-8?B?${btoa(unescape(encodeURIComponent(subj)))}?=`);
-  lines.push('');
-  lines.push(body);
-  const raw = lines.join('\n');
+  const email = [
+    'Content-Type: text/plain; charset="UTF-8"',
+    'MIME-Version: 1.0',
+    `Subject: =?utf-8?B?${btoa(unescape(encodeURIComponent(subj)))}?=`,
+    '',
+    body
+  ].join('\n');
 
-  const encoded = btoa(unescape(encodeURIComponent(raw)))
+  const encoded = btoa(unescape(encodeURIComponent(email)))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
   try {
@@ -613,9 +610,9 @@ function renderCases(){
 function addCase(){
   const co=document.getElementById('c-company').value.trim();
   if(!co){alert('客先会社名を入力してください');return;}
-  cases.push({id:Date.now(),company:co,person:document.getElementById('c-person').value,email:document.getElementById('c-email').value,type:document.getElementById('c-type').value,deadline:document.getElementById('c-deadline').value,status:document.getElementById('c-status').value,memo:document.getElementById('c-memo').value});
+  cases.push({id:Date.now(),company:co,person:document.getElementById('c-person').value,type:document.getElementById('c-type').value,deadline:document.getElementById('c-deadline').value,status:document.getElementById('c-status').value,memo:document.getElementById('c-memo').value});
   save();toggleForm('case-form');
-  ['c-company','c-person','c-email','c-deadline','c-memo'].forEach(id=>document.getElementById(id).value='');
+  ['c-company','c-person','c-deadline','c-memo'].forEach(id=>document.getElementById(id).value='');
   renderCases();
 }
 
@@ -630,14 +627,13 @@ function openCaseEdit(i){
   document.getElementById('ec-type').value=c.type;
   document.getElementById('ec-deadline').value=c.deadline||'';
   document.getElementById('ec-status').value=c.status;
-  document.getElementById('ec-email').value=c.email||'';
   document.getElementById('ec-memo').value=c.memo||'';
   document.getElementById('case-edit-modal').classList.add('active');
 }
 
 function saveCaseEdit(){
   const i=parseInt(document.getElementById('edit-case-idx').value);
-  cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,email:document.getElementById('ec-email').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
+  cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
   save();document.getElementById('case-edit-modal').classList.remove('active');renderCases();
 }
 
@@ -701,21 +697,19 @@ async function runAI(type){
 
   const caseList=cases.map(c=>`・${c.company}（${c.person}）種別:${c.type} 納期:${c.deadline||'未定'} ステータス:${c.status} 備考:${c.memo||'なし'}`).join('\n');
   const vendorList=vendors.map(v=>`・${v.company}（${v.person}）業種:${v.type} Email:${v.email}`).join('\n');
-  const mailRules=`\n\n【文章生成ルール】マークダウン記号（**、##、-、・等）は一切使わないこと。ビジネスメールとして自然な日本語の文章のみで生成すること。箇条書きにする場合は全角数字（1. 2. 3.）を使うこと。`;
   let prompt='';
-  let currentCase=null;
 
   if(type==='confirm'){
     const idx=document.getElementById('sel-case').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
-    currentCase=cases[parseInt(idx)];
-    prompt=`以下の案件について、客先への確認メール文を生成してください。\n\n客先：${currentCase.company}\n担当者：${currentCase.person}\n案件種別：${currentCase.type}\n備考・不足情報：${currentCase.memo||'なし'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文は冒頭の宛名なしで本文のみ。冒頭の宛名は自動挿入されます）${mailRules}`;
+    const c=cases[parseInt(idx)];
+    prompt=`以下の案件について、客先への確認メール文を生成してください。\n\n客先：${c.company}\n担当者：${c.person}\n案件種別：${c.type}\n備考・不足情報：${c.memo||'なし'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文をここに）`;
   } else if(type==='estimate'){
     const idx=document.getElementById('sel-case2').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
-    currentCase=cases[parseInt(idx)];
-    const matchedVendors=vendors.filter(v=>v.type.includes(currentCase.type.replace('基板',''))||currentCase.type.includes(v.type.replace('基板','')));
-    prompt=`以下の案件について、外注先への見積依頼メール文を生成してください。\n\n客先：${currentCase.company}\n種別：${currentCase.type}\n納期：${currentCase.deadline||'未定'}\n備考：${currentCase.memo||'なし'}\n外注先候補：${matchedVendors.length>0?matchedVendors.map(v=>v.company).join('、'):'（外注先を登録してください）'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文は冒頭の宛名なしで本文のみ。冒頭の宛名は自動挿入されます）${mailRules}`;
+    const c=cases[parseInt(idx)];
+    const matchedVendors=vendors.filter(v=>v.type.includes(c.type.replace('基板',''))||c.type.includes(v.type.replace('基板','')));
+    prompt=`以下の案件について、外注先への見積依頼メール文を生成してください。\n\n客先：${c.company}\n種別：${c.type}\n納期：${c.deadline||'未定'}\n備考：${c.memo||'なし'}\n外注先候補：${matchedVendors.length>0?matchedVendors.map(v=>v.company).join('、'):'（外注先を登録してください）'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文をここに）`;
   } else if(type==='compare'){
     prompt=`以下の案件と外注先情報をもとに、見積比較表のフォーマットを作成してください。\n\n案件：\n${caseList||'なし'}\n\n外注先：\n${vendorList||'なし'}`;
   }
@@ -740,7 +734,12 @@ async function runAI(type){
       // To欄に案件のメールアドレスを自動セット
       if(currentCase&&currentCase.email){
         const toEl=document.getElementById('to-'+type);
-        if(toEl&&!toEl.value)toEl.value=currentCase.email;
+        if(toEl)toEl.value=currentCase.email;
+      }
+      // CC欄に受信メールのCCを自動セット
+      if(currentCase&&currentCase.cc){
+        const ccEl=document.getElementById('cc-'+type);
+        if(ccEl&&!ccEl.value)ccEl.value=currentCase.cc;
       }
       if(outEl)outEl.style.display='block';
     } else {
@@ -750,6 +749,16 @@ async function runAI(type){
     if(outEl){outEl.textContent='エラー：'+e.message;outEl.style.display='block';}
   }
   genEl.style.display='none';
+}
+
+function copyMail(type){
+  const subj=document.getElementById('subj-'+type);
+  const body=document.getElementById('body-'+type);
+  if(subj&&body){
+    navigator.clipboard.writeText('件名：'+subj.value+'\n\n'+body.value).catch(()=>{});
+    const msg=document.getElementById('copy-'+type);
+    if(msg){msg.style.display='inline';setTimeout(()=>msg.style.display='none',3000);}
+  }
 }
 
 renderCases();
