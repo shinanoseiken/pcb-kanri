@@ -206,9 +206,7 @@ textarea{resize:vertical;min-height:60px;}
           <textarea class="mail-body" id="body-confirm"></textarea>
           <!-- ② flex折り返しでボタンはみ出し防止 -->
           <div class="op-btns">
-            <button class="btn" onclick="copyMail('confirm')">クリップボードにコピー</button>
             <button class="btn btn-save-draft" onclick="saveDraft('confirm')">Gmailに下書き保存</button>
-            <span class="copy-msg" id="copy-confirm">コピーしました！</span>
             <span class="copy-msg" id="draft-confirm">下書き保存しました！</span>
           </div>
         </div>
@@ -226,9 +224,7 @@ textarea{resize:vertical;min-height:60px;}
           <textarea class="mail-body" id="body-estimate"></textarea>
           <!-- ② flex折り返しでボタンはみ出し防止 -->
           <div class="op-btns">
-            <button class="btn" onclick="copyMail('estimate')">クリップボードにコピー</button>
             <button class="btn btn-save-draft" onclick="saveDraft('estimate')">Gmailに下書き保存</button>
-            <span class="copy-msg" id="copy-estimate">コピーしました！</span>
             <span class="copy-msg" id="draft-estimate">下書き保存しました！</span>
           </div>
         </div>
@@ -762,13 +758,6 @@ async function runAI(type){
   genEl.style.display='none';
 }
 
-function copyMail(type){
-  const subj=document.getElementById('subj-'+type);
-  const body=document.getElementById('body-'+type);
-  if(subj&&body){
-    navigator.clipboard.writeText('件名：'+subj.value+'\n\n'+body.value).catch(()=>{});
-    const msg=document.getElementById('copy-'+type);
-    if(msg){msg.style.display='inline';setTimeout(()=>msg.style.display='none',3000);}
   }
 }
 
