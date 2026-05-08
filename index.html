@@ -432,15 +432,15 @@ ${mailText}
     let html = `<div style="margin-bottom:8px;font-weight:500;font-size:13px;">📬 案件候補 ${candidates.length}件 見つかりました</div>`;
     candidates.forEach((c, i) => {
       const shortMemo = c.memo && c.memo.length > 50 ? c.memo.slice(0, 50) + '...' : (c.memo || '');
-      const personName = c.person || c.from.replace(/<.*>/, '').trim();
+      const personName = c.person || c.from.replace(/.*<(.+)>.*/, '$1').split('@')[0];
       html += `
-        <div style="border:1px solid #b5d4f4;border-radius:8px;margin-bottom:8px;background:#f0f7ff;overflow:hidden;">
-          <div style="padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleCandidate(${i})">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📧 ${c.subject}</div>
-              <div style="font-size:11px;color:#555;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${shortMemo}</div>
+        <div style="border:1px solid #b5d4f4;border-radius:8px;margin-bottom:8px;background:#f0f7ff;">
+          <div style="padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;" onclick="toggleCandidate(${i})">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:500;">📧 ${c.subject}</div>
+              <div style="font-size:11px;color:#666;margin-top:3px;">${shortMemo}</div>
             </div>
-            <span id="arrow-${i}" style="font-size:11px;color:#888;margin-left:8px;flex-shrink:0;">▼</span>
+            <span id="arrow-${i}" style="font-size:11px;color:#888;margin-left:8px;padding-top:2px;">▼</span>
           </div>
           <div id="candidate-detail-${i}" style="display:none;padding:0 12px 10px;border-top:1px solid #dde8f5;">
             <div style="font-size:12px;color:#555;margin-top:8px;margin-bottom:3px;">送信者: ${c.from}</div>
@@ -476,7 +476,7 @@ function toggleCandidate(i) {
 
 function registerCaseFromMail(i) {
   const c = window._mailCandidates[i];
-  const personName = c.person || c.from.replace(/<.*>/, '').trim();
+  const personName = c.person || c.from.replace(/.*<(.+)>.*/, '$1').split('@')[0];
   cases.push({
     id: Date.now(),
     company: c.company || '（要確認）',
@@ -551,7 +551,7 @@ function renderCases(){
   if(cases.length===0){tb.innerHTML='<tr><td colspan="6" class="empty">案件がありません</td></tr>';}
   cases.forEach((c,i)=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td style="font-weight:500;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td>${statusBadge(c.status)}</td><td style="white-space:nowrap;min-width:200px;"><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;"><select style="font-size:11px;padding:3px 6px;border:1px solid #e8e8e4;border-radius:4px;" onchange="changeStatus(${i},this.value)"><option value="">変更</option><option value="recv">受付済</option><option value="wait">返信待ち</option><option value="quote">見積依頼中</option><option value="comp">完了</option></select><button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button><button class="btn btn-edit" style="font-size:11px;padding:3px 8px;" onclick="openCaseEdit(${i})">編集</button></div></td>`;
+    tr.innerHTML=`<td style="font-weight:500;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td>${statusBadge(c.status)}</td><td style="white-space:nowrap;"><select style="font-size:11px;padding:3px 6px;border:1px solid #e8e8e4;border-radius:4px;" onchange="changeStatus(${i},this.value)"><option value="">変更</option><option value="recv">受付済</option><option value="wait">返信待ち</option><option value="quote">見積依頼中</option><option value="comp">完了</option></select> <button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button> <button class="btn btn-edit" style="font-size:11px;padding:3px 8px;" onclick="openCaseEdit(${i})">編集</button></td>`;
     tb.appendChild(tr);
   });
   document.getElementById('m-recv').textContent=cases.filter(c=>c.status==='recv').length;
