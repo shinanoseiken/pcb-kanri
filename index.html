@@ -358,15 +358,21 @@ function gmailLogout() {
 }
 
 // ③ Fromヘッダーから送信者の表示名を抽出
-// 例: "山田 太郎 <yamada@example.com>" → "山田 太郎"
-// 例: "yamada@example.com" → "yamada"
+// 表示名が会社名（株式会社・有限会社・Co.・Inc.等を含む）の場合は空を返す
 function extractSenderName(fromHeader) {
   if (!fromHeader) return '';
+  let name = '';
   const match = fromHeader.match(/^(.+?)\s*<[^>]+>/);
   if (match) {
-    return match[1].replace(/^["']|["']$/g, '').trim();
+    name = match[1].replace(/^["']|["']$/g, '').trim();
+  } else {
+    name = fromHeader.split('@')[0].trim();
   }
-  return fromHeader.split('@')[0].trim();
+  // 会社名・組織名らしい場合は空を返す
+  if (/株式会社|有限会社|合同会社|一般社団|財団法人|Corp|Inc\.|Ltd\.|Co\.|LLC|GmbH/.test(name)) return '';
+  // 全角英数字のみ（社名ローマ字など）も除外
+  if (/^[A-Za-z0-9\s\-_]+$/.test(name) && name.length > 8) return '';
+  return name;
 }
 
 async function checkGmail() {
@@ -415,11 +421,11 @@ ${mailText}
 出力形式（JSON配列）：
 [
   {
-    "company": "会社名",
-    "person": "担当者名（不明なら空）",
+    "company": "会社名（送信者のFrom表示名や件名から推測）",
+    "person": "個人の担当者名のみ。Fromの表示名が会社名・組織名の場合は必ず空文字にすること。個人名（例：山田太郎、田中様）のみここに入れる。",
     "type": "基板設計 or 基板製作 or 基板実装",
     "memo": "メールから読み取れる情報",
-    "from": "送信者メールアドレス",
+    "from": "送信者のメールアドレスのみ（<>の中身）",
     "subject": "件名"
   }
 ]
@@ -463,19 +469,19 @@ ${mailText}
       // ③ 担当者表示：AI抽出person → Fromの表示名 → メールのローカルパート
       const displayPerson = c.person || c.senderName || c.from.split('@')[0];
       html += `
-        <div style="border:1px solid #b5d4f4;border-radius:8px;margin-bottom:8px;background:#f0f7ff;">
-          <div style="padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;" onclick="toggleCandidate(${i})">
+        <div style="border:1px solid #b5d4f4;border-radius:8px;margin-bottom:6px;background:#f0f7ff;">
+          <div style="padding:6px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleCandidate(${i})">
             <div style="flex:1;">
-              <div style="font-size:13px;font-weight:500;">📧 ${c.subject}</div>
-              <div style="font-size:11px;color:#666;margin-top:3px;">${shortMemo}</div>
+              <div style="font-size:12px;font-weight:500;">📧 ${c.subject}</div>
+              <div style="font-size:11px;color:#666;">${shortMemo}</div>
             </div>
-            <span id="arrow-${i}" style="font-size:11px;color:#888;margin-left:8px;padding-top:2px;">▼</span>
+            <span id="arrow-${i}" style="font-size:11px;color:#888;margin-left:8px;">▼</span>
           </div>
-          <div id="candidate-detail-${i}" style="display:none;padding:0 12px 10px;border-top:1px solid #dde8f5;">
-            <div style="font-size:12px;color:#555;margin-top:8px;margin-bottom:3px;">送信者: ${c.rawFrom}</div>
-            <div style="font-size:12px;color:#555;margin-bottom:3px;">会社名: ${c.company || '不明'} ／ 担当者: ${displayPerson}</div>
-            <div style="font-size:12px;color:#555;margin-bottom:3px;">種別: ${c.type}</div>
-            <div style="font-size:12px;color:#555;margin-bottom:8px;">メモ: ${c.memo}</div>
+          <div id="candidate-detail-${i}" style="display:none;padding:0 10px 8px;border-top:1px solid #dde8f5;">
+            <div style="font-size:12px;color:#555;margin-top:6px;">送信者: ${c.rawFrom}</div>
+            <div style="font-size:12px;color:#555;">会社名: ${c.company || '不明'} ／ 担当者: ${displayPerson}</div>
+            <div style="font-size:12px;color:#555;">種別: ${c.type}</div>
+            <div style="font-size:12px;color:#555;margin-bottom:6px;">メモ: ${c.memo}</div>
             <button class="btn btn-primary" style="font-size:12px;" onclick="registerCaseFromMail(${i})">この内容で案件登録する</button>
           </div>
         </div>`;
