@@ -116,6 +116,10 @@ textarea{resize:vertical;min-height:60px;}
         <div><label>客先会社名</label><input id="c-company" placeholder="例：もみじテック株式会社"></div>
         <div><label>担当者名</label><input id="c-person" placeholder="例：奥田 様"></div>
       </div>
+      <div class="form-row">
+        <div><label>客先メールアドレス</label><input id="c-email" type="email" placeholder="例：okuda@example.co.jp"></div>
+        <div></div>
+      </div>
       <div class="form-row-3">
         <div><label>案件種別</label>
           <select id="c-type">
@@ -187,7 +191,7 @@ textarea{resize:vertical;min-height:60px;}
         <div class="op-desc">Gmailから案件メールを取得・判定</div>
         <button class="btn btn-green" onclick="checkGmail()">今すぐ確認</button>
         <div class="generating" id="gen-check">メールを確認中...</div>
-        <div class="ai-output" id="out-check"></div>
+        <div id="out-check" style="margin-top:8px;"></div>
       </div>
       <div class="op-card">
         <div class="op-title">確認メール文を生成</div>
@@ -250,6 +254,10 @@ textarea{resize:vertical;min-height:60px;}
     <div class="form-row">
       <div><label>客先会社名</label><input id="ec-company"></div>
       <div><label>担当者名</label><input id="ec-person"></div>
+    </div>
+    <div class="form-row">
+      <div><label>客先メールアドレス</label><input id="ec-email" type="email"></div>
+      <div></div>
     </div>
     <div class="form-row-3">
       <div><label>案件種別</label>
@@ -610,9 +618,9 @@ function renderCases(){
 function addCase(){
   const co=document.getElementById('c-company').value.trim();
   if(!co){alert('客先会社名を入力してください');return;}
-  cases.push({id:Date.now(),company:co,person:document.getElementById('c-person').value,type:document.getElementById('c-type').value,deadline:document.getElementById('c-deadline').value,status:document.getElementById('c-status').value,memo:document.getElementById('c-memo').value});
+  cases.push({id:Date.now(),company:co,person:document.getElementById('c-person').value,email:document.getElementById('c-email').value,type:document.getElementById('c-type').value,deadline:document.getElementById('c-deadline').value,status:document.getElementById('c-status').value,memo:document.getElementById('c-memo').value});
   save();toggleForm('case-form');
-  ['c-company','c-person','c-deadline','c-memo'].forEach(id=>document.getElementById(id).value='');
+  ['c-company','c-person','c-email','c-deadline','c-memo'].forEach(id=>document.getElementById(id).value='');
   renderCases();
 }
 
@@ -627,13 +635,14 @@ function openCaseEdit(i){
   document.getElementById('ec-type').value=c.type;
   document.getElementById('ec-deadline').value=c.deadline||'';
   document.getElementById('ec-status').value=c.status;
+  document.getElementById('ec-email').value=c.email||'';
   document.getElementById('ec-memo').value=c.memo||'';
   document.getElementById('case-edit-modal').classList.add('active');
 }
 
 function saveCaseEdit(){
   const i=parseInt(document.getElementById('edit-case-idx').value);
-  cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
+  cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,email:document.getElementById('ec-email').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
   save();document.getElementById('case-edit-modal').classList.remove('active');renderCases();
 }
 
