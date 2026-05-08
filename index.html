@@ -697,19 +697,21 @@ async function runAI(type){
 
   const caseList=cases.map(c=>`・${c.company}（${c.person}）種別:${c.type} 納期:${c.deadline||'未定'} ステータス:${c.status} 備考:${c.memo||'なし'}`).join('\n');
   const vendorList=vendors.map(v=>`・${v.company}（${v.person}）業種:${v.type} Email:${v.email}`).join('\n');
+  const mailRules=`\n\n【文章生成ルール】マークダウン記号（**、##、-、・等）は一切使わないこと。ビジネスメールとして自然な日本語の文章のみで生成すること。箇条書きにする場合は全角数字（1. 2. 3.）を使うこと。`;
   let prompt='';
+  let currentCase=null;
 
   if(type==='confirm'){
     const idx=document.getElementById('sel-case').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
-    const c=cases[parseInt(idx)];
-    prompt=`以下の案件について、客先への確認メール文を生成してください。\n\n客先：${c.company}\n担当者：${c.person}\n案件種別：${c.type}\n備考・不足情報：${c.memo||'なし'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文をここに）`;
+    currentCase=cases[parseInt(idx)];
+    prompt=`以下の案件について、客先への確認メール文を生成してください。\n\n客先：${currentCase.company}\n担当者：${currentCase.person}\n案件種別：${currentCase.type}\n備考・不足情報：${currentCase.memo||'なし'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文は冒頭の宛名なしで本文のみ。冒頭の宛名は自動挿入されます）${mailRules}`;
   } else if(type==='estimate'){
     const idx=document.getElementById('sel-case2').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
-    const c=cases[parseInt(idx)];
-    const matchedVendors=vendors.filter(v=>v.type.includes(c.type.replace('基板',''))||c.type.includes(v.type.replace('基板','')));
-    prompt=`以下の案件について、外注先への見積依頼メール文を生成してください。\n\n客先：${c.company}\n種別：${c.type}\n納期：${c.deadline||'未定'}\n備考：${c.memo||'なし'}\n外注先候補：${matchedVendors.length>0?matchedVendors.map(v=>v.company).join('、'):'（外注先を登録してください）'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文をここに）`;
+    currentCase=cases[parseInt(idx)];
+    const matchedVendors=vendors.filter(v=>v.type.includes(currentCase.type.replace('基板',''))||currentCase.type.includes(v.type.replace('基板','')));
+    prompt=`以下の案件について、外注先への見積依頼メール文を生成してください。\n\n客先：${currentCase.company}\n種別：${currentCase.type}\n納期：${currentCase.deadline||'未定'}\n備考：${currentCase.memo||'なし'}\n外注先候補：${matchedVendors.length>0?matchedVendors.map(v=>v.company).join('、'):'（外注先を登録してください）'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文は冒頭の宛名なしで本文のみ。冒頭の宛名は自動挿入されます）${mailRules}`;
   } else if(type==='compare'){
     prompt=`以下の案件と外注先情報をもとに、見積比較表のフォーマットを作成してください。\n\n案件：\n${caseList||'なし'}\n\n外注先：\n${vendorList||'なし'}`;
   }
