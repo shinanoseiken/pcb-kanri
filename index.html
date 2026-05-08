@@ -33,6 +33,8 @@ body{font-family:'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f5f0;color
 .btn-green:hover{background:#085041;}
 .btn-edit{background:#e6f1fb;color:#0c447c;border-color:#b5d4f4;}
 .btn-edit:hover{background:#b5d4f4;}
+.btn-save-draft{background:#1a73e8;color:#fff;border-color:#1a73e8;margin-left:8px;}
+.btn-save-draft:hover{background:#1557b0;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
 th{font-size:11px;color:#888;font-weight:500;text-align:left;padding:8px;border-bottom:1px solid #e8e8e4;}
 td{padding:10px 8px;border-bottom:1px solid #f0f0ec;vertical-align:middle;}
@@ -70,9 +72,6 @@ textarea{resize:vertical;min-height:60px;}
 .modal{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:520px;}
 .modal-title{font-size:15px;font-weight:500;margin-bottom:16px;}
 .modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
-.gmail-info{font-size:12px;color:#888;margin-top:8px;}
-.btn-save-draft{background:#1a73e8;color:#fff;border-color:#1a73e8;margin-left:8px;}
-.btn-save-draft:hover{background:#1557b0;}
 </style>
 </head>
 <body>
@@ -236,6 +235,7 @@ textarea{resize:vertical;min-height:60px;}
 </div>
 
 </div>
+
 <!-- 案件編集モーダル -->
 <div class="modal-overlay" id="case-edit-modal">
   <div class="modal">
@@ -269,6 +269,7 @@ textarea{resize:vertical;min-height:60px;}
     </div>
   </div>
 </div>
+
 <!-- 外注先編集モーダル -->
 <div class="modal-overlay" id="edit-modal">
   <div class="modal">
@@ -305,25 +306,18 @@ const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googl
 let accessToken = null;
 let tokenClient = null;
 
-let cases=JSON.parse(localStorage.getItem('pcb-cases')||'[{"id":1,"company":"もみじテック株式会社","person":"奥田 様","type":"基板実装","deadline":"","status":"recv","memo":"不足情報：納期・実装詳細"}]');
+let cases=JSON.parse(localStorage.getItem('pcb-cases')||'[{"id":1,"company":"もみじテック株式会社","person":"奥田 様","type":"基板実装","deadline":"","status":"comp","memo":"完了済み"}]');
 let vendors=JSON.parse(localStorage.getItem('pcb-vendors')||'[]');
 
 function save(){localStorage.setItem('pcb-cases',JSON.stringify(cases));localStorage.setItem('pcb-vendors',JSON.stringify(vendors));}
 
-// Gmail OAuth
 function initGoogleAuth() {
-  if (typeof google === 'undefined') {
-    setTimeout(initGoogleAuth, 500);
-    return;
-  }
+  if (typeof google === 'undefined') { setTimeout(initGoogleAuth, 500); return; }
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
     callback: (response) => {
-      if (response.error) {
-        alert('ログインに失敗しました: ' + response.error);
-        return;
-      }
+      if (response.error) { alert('ログインに失敗しました: ' + response.error); return; }
       accessToken = response.access_token;
       setGmailConnected(true);
     },
@@ -331,10 +325,7 @@ function initGoogleAuth() {
 }
 
 function gmailLogin() {
-  if (!tokenClient) {
-    alert('Googleの認証ライブラリを読み込み中です。少し待ってから再試行してください。');
-    return;
-  }
+  if (!tokenClient) { alert('Googleの認証ライブラリを読み込み中です。少し待ってから再試行してください。'); return; }
   tokenClient.requestAccessToken();
 }
 
@@ -356,19 +347,12 @@ function setGmailConnected(connected) {
 }
 
 function gmailLogout() {
-  if (accessToken) {
-    google.accounts.oauth2.revoke(accessToken);
-    accessToken = null;
-  }
+  if (accessToken) { google.accounts.oauth2.revoke(accessToken); accessToken = null; }
   setGmailConnected(false);
 }
 
-// Gmail新着確認
 async function checkGmail() {
-  if (!accessToken) {
-    alert('先にGoogleでログインしてください。');
-    return;
-  }
+  if (!accessToken) { alert('先にGoogleでログインしてください。'); return; }
   const genEl = document.getElementById('gen-check');
   const outEl = document.getElementById('out-check');
   genEl.style.display = 'block';
@@ -436,27 +420,34 @@ ${mailText}
     try {
       const clean = aiText.replace(/```json|```/g, '').trim();
       candidates = JSON.parse(clean);
-    } catch(e) {
-      candidates = [];
-    }
+    } catch(e) { candidates = []; }
 
     if (candidates.length === 0) {
-      outEl.innerHTML = `<div style="margin-bottom:8px;">【確認済み ${details.length}件】案件関連メールは見つかりませんでした。</div>`;
+      outEl.innerHTML = `<div>【確認済み ${details.length}件】案件関連メールは見つかりませんでした。</div>`;
       outEl.style.display = 'block';
       genEl.style.display = 'none';
       return;
     }
 
-    let html = `<div style="margin-bottom:12px;">【案件候補 ${candidates.length}件 見つかりました】</div>`;
+    let html = `<div style="margin-bottom:12px;font-weight:500;">📬 案件候補 ${candidates.length}件 見つかりました</div>`;
     candidates.forEach((c, i) => {
+      const shortMemo = c.memo && c.memo.length > 60 ? c.memo.slice(0, 60) + '...' : (c.memo || '');
       html += `
-        <div style="border:1px solid #b5d4f4;border-radius:8px;padding:12px;margin-bottom:10px;background:#f0f7ff;">
-          <div style="font-size:13px;font-weight:500;margin-bottom:6px;">📧 ${c.subject}</div>
-          <div style="font-size:12px;color:#555;margin-bottom:4px;">送信者: ${c.from}</div>
-          <div style="font-size:12px;color:#555;margin-bottom:4px;">会社名: ${c.company || '不明'}</div>
-          <div style="font-size:12px;color:#555;margin-bottom:4px;">種別: ${c.type}</div>
-          <div style="font-size:12px;color:#555;margin-bottom:8px;">メモ: ${c.memo}</div>
-          <button class="btn btn-primary" style="font-size:12px;" onclick="registerCaseFromMail(${i})">この内容で案件登録する</button>
+        <div style="border:1px solid #b5d4f4;border-radius:8px;margin-bottom:10px;background:#f0f7ff;overflow:hidden;">
+          <div style="padding:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleCandidate(${i})">
+            <div>
+              <div style="font-size:13px;font-weight:500;">📧 ${c.subject}</div>
+              <div style="font-size:12px;color:#555;margin-top:3px;">${shortMemo}</div>
+            </div>
+            <span id="arrow-${i}" style="font-size:12px;color:#888;margin-left:8px;">▼</span>
+          </div>
+          <div id="candidate-detail-${i}" style="display:none;padding:0 12px 12px;">
+            <div style="font-size:12px;color:#555;margin-bottom:4px;">送信者: ${c.from}</div>
+            <div style="font-size:12px;color:#555;margin-bottom:4px;">会社名: ${c.company || '不明'}</div>
+            <div style="font-size:12px;color:#555;margin-bottom:4px;">種別: ${c.type}</div>
+            <div style="font-size:12px;color:#555;margin-bottom:8px;">メモ: ${c.memo}</div>
+            <button class="btn btn-primary" style="font-size:12px;" onclick="registerCaseFromMail(${i})">この内容で案件登録する</button>
+          </div>
         </div>`;
     });
     outEl.innerHTML = html;
@@ -468,6 +459,18 @@ ${mailText}
     outEl.style.display = 'block';
   }
   genEl.style.display = 'none';
+}
+
+function toggleCandidate(i) {
+  const detail = document.getElementById('candidate-detail-' + i);
+  const arrow = document.getElementById('arrow-' + i);
+  if (detail.style.display === 'none') {
+    detail.style.display = 'block';
+    arrow.textContent = '▲';
+  } else {
+    detail.style.display = 'none';
+    arrow.textContent = '▼';
+  }
 }
 
 function registerCaseFromMail(i) {
@@ -485,18 +488,12 @@ function registerCaseFromMail(i) {
   renderCases();
   alert(`「${c.company}」を案件一覧に登録しました！`);
 }
-// Gmail下書き保存
+
 async function saveDraft(type) {
-  if (!accessToken) {
-    alert('先にGoogleでログインしてください。');
-    return;
-  }
+  if (!accessToken) { alert('先にGoogleでログインしてください。'); return; }
   const subj = document.getElementById('subj-' + type).value;
   const body = document.getElementById('body-' + type).value;
-  if (!subj && !body) {
-    alert('先にメールを生成してください。');
-    return;
-  }
+  if (!subj && !body) { alert('先にメールを生成してください。'); return; }
 
   const email = [
     'Content-Type: text/plain; charset="UTF-8"',
@@ -512,10 +509,7 @@ async function saveDraft(type) {
   try {
     const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
       method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + accessToken,
-        'Content-Type': 'application/json'
-      },
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: { raw: encoded } })
     });
     if (res.ok) {
@@ -526,9 +520,7 @@ async function saveDraft(type) {
       const err = await res.json();
       alert('下書き保存に失敗しました: ' + JSON.stringify(err));
     }
-  } catch(e) {
-    alert('エラー: ' + e.message);
-  }
+  } catch(e) { alert('エラー: ' + e.message); }
 }
 
 function showTab(t,btn){
@@ -557,7 +549,7 @@ function renderCases(){
   if(cases.length===0){tb.innerHTML='<tr><td colspan="6" class="empty">案件がありません</td></tr>';}
   cases.forEach((c,i)=>{
     const tr=document.createElement('tr');
-  tr.innerHTML=`<td style="font-weight:500;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td>${statusBadge(c.status)}</td><td><select style="font-size:11px;padding:3px 6px;border:1px solid #e8e8e4;border-radius:4px;" onchange="changeStatus(${i},this.value)"><option value="">変更</option><option value="recv">受付済</option><option value="wait">返信待ち</option><option value="quote">見積依頼中</option><option value="comp">完了</option></select> <button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button> <button class="btn btn-edit" style="font-size:11px;padding:3px 8px;" onclick="openCaseEdit(${i})">編集</button></td>`;
+    tr.innerHTML=`<td style="font-weight:500;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td>${statusBadge(c.status)}</td><td style="white-space:nowrap;"><select style="font-size:11px;padding:3px 6px;border:1px solid #e8e8e4;border-radius:4px;" onchange="changeStatus(${i},this.value)"><option value="">変更</option><option value="recv">受付済</option><option value="wait">返信待ち</option><option value="quote">見積依頼中</option><option value="comp">完了</option></select> <button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button> <button class="btn btn-edit" style="font-size:11px;padding:3px 8px;" onclick="openCaseEdit(${i})">編集</button></td>`;
     tb.appendChild(tr);
   });
   document.getElementById('m-recv').textContent=cases.filter(c=>c.status==='recv').length;
@@ -581,6 +573,24 @@ function addCase(){
 
 function changeStatus(i,v){if(!v)return;cases[i].status=v;save();renderCases();}
 function deleteCase(i){if(confirm('削除しますか？')){cases.splice(i,1);save();renderCases();}}
+
+function openCaseEdit(i){
+  const c=cases[i];
+  document.getElementById('edit-case-idx').value=i;
+  document.getElementById('ec-company').value=c.company;
+  document.getElementById('ec-person').value=c.person;
+  document.getElementById('ec-type').value=c.type;
+  document.getElementById('ec-deadline').value=c.deadline||'';
+  document.getElementById('ec-status').value=c.status;
+  document.getElementById('ec-memo').value=c.memo||'';
+  document.getElementById('case-edit-modal').classList.add('active');
+}
+
+function saveCaseEdit(){
+  const i=parseInt(document.getElementById('edit-case-idx').value);
+  cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
+  save();document.getElementById('case-edit-modal').classList.remove('active');renderCases();
+}
 
 function renderVendors(){
   const tb=document.getElementById('vendor-tbody');
@@ -617,22 +627,7 @@ function openEditModal(i){
   document.getElementById('e-memo').value=v.memo||'';
   document.getElementById('edit-modal').classList.add('active');
 }
-function openCaseEdit(i){
-  const c=cases[i];
-  document.getElementById('edit-case-idx').value=i;
-  document.getElementById('ec-company').value=c.company;
-  document.getElementById('ec-person').value=c.person;
-  document.getElementById('ec-type').value=c.type;
-  document.getElementById('ec-deadline').value=c.deadline||'';
-  document.getElementById('ec-status').value=c.status;
-  document.getElementById('ec-memo').value=c.memo||'';
-  document.getElementById('case-edit-modal').classList.add('active');
-}
-function saveCaseEdit(){
-  const i=parseInt(document.getElementById('edit-case-idx').value);
-  cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
-  save();document.getElementById('case-edit-modal').classList.remove('active');renderCases();
-}
+
 function closeEditModal(){document.getElementById('edit-modal').classList.remove('active');}
 
 function saveVendor(){
