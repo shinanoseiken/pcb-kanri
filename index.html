@@ -403,7 +403,7 @@ async function checkGmail() {
 
     const details = await Promise.all(messages.slice(0, 5).map(async (m) => {
       const r = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Cc&metadataHeaders=Reply-To`,
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`,
         { headers: { Authorization: 'Bearer ' + accessToken } }
       );
       const d = await r.json();
@@ -412,14 +412,26 @@ async function checkGmail() {
       const from = headers.find(h => h.name === 'From')?.value || '（不明）';
       const cc = headers.find(h => h.name === 'Cc')?.value || '';
       const replyTo = headers.find(h => h.name === 'Reply-To')?.value || '';
-      return { from, subject, cc, replyTo };
+      // メール本文を取得
+      const getPart = (parts) => {
+        for (const p of parts||[]) {
+          if (p.mimeType==='text/plain' && p.body?.data) return atob(p.body.data.replace(/-/g,'+').replace(/_/g,'/'));
+          if (p.parts) { const r=getPart(p.parts); if(r) return r; }
+        }
+        return '';
+      };
+      const bodyText = d.payload.body?.data
+        ? atob(d.payload.body.data.replace(/-/g,'+').replace(/_/g,'/'))
+        : getPart(d.payload.parts);
+      return { from, subject, cc, replyTo, bodyText };
     }));
 
-    const mailText = details.map(d => `・${d.from}\n  件名: ${d.subject}`).join('\n\n');
+    const mailText = details.map(d => `・送信者: ${d.from}\n  件名: ${d.subject}\n  本文冒頭: ${d.bodyText.slice(0,200)}`).join('\n\n');
 
     const prompt = `以下のメール一覧から基板案件に関係するメールを判定してください。
 案件関連メールがあれば、以下のJSON形式で返してください。関係ないメールは無視してください。
 必ずJSON配列のみを返し、説明文は不要です。
+メール本文冒頭に会社名・担当者名が記載されている場合は必ずそこから取得してください。
 
 メール一覧：
 ${mailText}
@@ -427,8 +439,8 @@ ${mailText}
 出力形式（JSON配列）：
 [
   {
-    "company": "会社名（送信者のFrom表示名や件名から推測）",
-    "person": "個人の担当者名のみ。Fromの表示名が会社名・組織名の場合は必ず空文字にすること。個人名（例：山田太郎、田中様）のみここに入れる。",
+    "company": "会社名。本文冒頭に記載があればそこから取得。なければFromの表示名や件名から推測。",
+    "person": "個人の担当者名のみ。本文冒頭に記載があればそこから取得。Fromの表示名が会社名・組織名の場合は空文字にすること。",
     "type": "基板設計 or 基板製作 or 基板実装",
     "memo": "メールから読み取れる情報",
     "from": "送信者のメールアドレスのみ（<>の中身）",
@@ -472,13 +484,17 @@ ${mailText}
     let html = `<div style="margin-bottom:8px;font-weight:500;font-size:13px;">📬 案件候補 ${candidates.length}件 見つかりました</div>`;
     candidates.forEach((c, i) => {
       const shortMemo = c.memo && c.memo.length > 50 ? c.memo.slice(0, 50) + '...' : (c.memo || '');
-      // ③ 担当者表示：AI抽出person → Fromの表示名 → メールのローカルパート
       const displayPerson = c.person || c.senderName || c.from.split('@')[0];
+      // 重複チェック：同じemailが既に登録済みか確認
+      const isDuplicate = cases.some(existing => existing.email && existing.email === c.from);
+      const registerBtn = isDuplicate
+        ? `<button class="btn" style="font-size:12px;cursor:default;color:#888;" disabled>登録済み</button>`
+        : `<button class="btn btn-primary" style="font-size:12px;" onclick="registerCaseFromMail(${i})">この内容で案件登録する</button>`;
       html += `
-        <div style="border:1px solid #b5d4f4;border-radius:8px;margin-bottom:6px;background:#f0f7ff;">
+        <div style="border:1px solid ${isDuplicate ? '#e8e8e4' : '#b5d4f4'};border-radius:8px;margin-bottom:6px;background:${isDuplicate ? '#fafafa' : '#f0f7ff'};">
           <div style="padding:6px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleCandidate(${i})">
             <div style="flex:1;">
-              <div style="font-size:12px;font-weight:500;">📧 ${c.subject}</div>
+              <div style="font-size:12px;font-weight:500;">📧 ${c.subject}${isDuplicate ? ' <span style=\"font-size:10px;color:#888;\">(登録済み)</span>' : ''}</div>
               <div style="font-size:11px;color:#666;">${shortMemo}</div>
             </div>
             <span id="arrow-${i}" style="font-size:11px;color:#888;margin-left:8px;">▼</span>
@@ -488,7 +504,7 @@ ${mailText}
             <div style="font-size:12px;color:#555;">会社名: ${c.company || '不明'} ／ 担当者: ${displayPerson}</div>
             <div style="font-size:12px;color:#555;">種別: ${c.type}</div>
             <div style="font-size:12px;color:#555;margin-bottom:6px;">メモ: ${c.memo}</div>
-            <button class="btn btn-primary" style="font-size:12px;" onclick="registerCaseFromMail(${i})">この内容で案件登録する</button>
+            ${registerBtn}
           </div>
         </div>`;
     });
@@ -517,16 +533,24 @@ function toggleCandidate(i) {
 
 function registerCaseFromMail(i) {
   const c = window._mailCandidates[i];
+  // 重複チェック
+  if (cases.some(existing => existing.email && existing.email === c.from)) {
+    alert(`「${c.company}」はすでに登録済みです。`);
+    return;
+  }
   const personName = c.person || c.senderName || c.from.split('@')[0];
-  // Reply-To優先、なければFromのアドレス部分を抽出
   const rawAddr = c.rawReplyTo || c.rawFrom || '';
   const emailAddr = rawAddr.match(/<([^>]+)>/) ? rawAddr.match(/<([^>]+)>/)[1] : (c.from || '');
+  // 案件カラーをランダムで割り当て
+  const COLORS = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#84cc16'];
+  const color = COLORS[Math.floor(Math.random() * COLORS.length)];
   cases.push({
     id: Date.now(),
     company: c.company || '（要確認）',
     person: personName,
     email: emailAddr,
     cc: c.rawCc || '',
+    color: color,
     type: c.type || '基板設計',
     deadline: '',
     status: 'recv',
@@ -542,16 +566,17 @@ async function saveDraft(type) {
   const subj = document.getElementById('subj-' + type).value;
   const body = document.getElementById('body-' + type).value;
   if (!subj && !body) { alert('先にメールを生成してください。'); return; }
+  const toVal = document.getElementById('to-' + type) ? document.getElementById('to-' + type).value : '';
+  const ccVal = document.getElementById('cc-' + type) ? document.getElementById('cc-' + type).value : '';
 
-  const email = [
-    'Content-Type: text/plain; charset="UTF-8"',
-    'MIME-Version: 1.0',
-    `Subject: =?utf-8?B?${btoa(unescape(encodeURIComponent(subj)))}?=`,
-    '',
-    body
-  ].join('\n');
-
-  const encoded = btoa(unescape(encodeURIComponent(email)))
+  const lines = ['Content-Type: text/plain; charset="UTF-8"', 'MIME-Version: 1.0'];
+  if (toVal) lines.push('To: ' + toVal);
+  if (ccVal) lines.push('Cc: ' + ccVal);
+  lines.push(`Subject: =?utf-8?B?${btoa(unescape(encodeURIComponent(subj)))}?=`);
+  lines.push('');
+  lines.push(body);
+  const raw = lines.join('\n');
+  const encoded = btoa(unescape(encodeURIComponent(raw)))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
   try {
@@ -598,7 +623,8 @@ function renderCases(){
   cases.forEach((c,i)=>{
     const tr=document.createElement('tr');
     // ② 操作列をflexで折り返し対応
-    tr.innerHTML=`<td style="font-weight:500;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td>${statusBadge(c.status)}</td><td><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;"><select style="font-size:11px;padding:3px 6px;border:1px solid #e8e8e4;border-radius:4px;" onchange="changeStatus(${i},this.value)"><option value="">変更</option><option value="recv">受付済</option><option value="wait">返信待ち</option><option value="quote">見積依頼中</option><option value="comp">完了</option></select><button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button><button class="btn btn-edit" style="font-size:11px;padding:3px 8px;" onclick="openCaseEdit(${i})">編集</button></div></td>`;
+    const color=c.color||'#3b82f6';
+    tr.innerHTML=`<td style="font-weight:500;border-left:4px solid ${color};padding-left:8px;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td>${statusBadge(c.status)}</td><td><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;"><select style="font-size:11px;padding:3px 6px;border:1px solid #e8e8e4;border-radius:4px;" onchange="changeStatus(${i},this.value)"><option value="">変更</option><option value="recv">受付済</option><option value="wait">返信待ち</option><option value="quote">見積依頼中</option><option value="comp">完了</option></select><button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button><button class="btn btn-edit" style="font-size:11px;padding:3px 8px;" onclick="openCaseEdit(${i})">編集</button></div></td>`;
     tb.appendChild(tr);
   });
   document.getElementById('m-recv').textContent=cases.filter(c=>c.status==='recv').length;
@@ -614,7 +640,9 @@ function renderCases(){
 function addCase(){
   const co=document.getElementById('c-company').value.trim();
   if(!co){alert('客先会社名を入力してください');return;}
-  cases.push({id:Date.now(),company:co,person:document.getElementById('c-person').value,email:document.getElementById('c-email').value,type:document.getElementById('c-type').value,deadline:document.getElementById('c-deadline').value,status:document.getElementById('c-status').value,memo:document.getElementById('c-memo').value});
+  const COLORS=['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#84cc16'];
+  const newColor=COLORS[Math.floor(Math.random()*COLORS.length)];
+  cases.push({id:Date.now(),company:co,person:document.getElementById('c-person').value,email:document.getElementById('c-email').value,color:newColor,type:document.getElementById('c-type').value,deadline:document.getElementById('c-deadline').value,status:document.getElementById('c-status').value,memo:document.getElementById('c-memo').value});
   save();toggleForm('case-form');
   ['c-company','c-person','c-email','c-deadline','c-memo'].forEach(id=>document.getElementById(id).value='');
   renderCases();
@@ -690,7 +718,7 @@ function updateCaseSelects(){
   ['sel-case','sel-case2'].forEach(id=>{
     const s=document.getElementById(id);
     s.innerHTML='<option value="">案件を選択...</option>';
-    cases.forEach((c,i)=>s.innerHTML+=`<option value="${i}">${c.company}（${c.person}）</option>`);
+    cases.forEach((c,i)=>s.innerHTML+=`<option value="${i}">● ${c.company}（${c.person}）</option>`);
   });
 }
 
