@@ -580,7 +580,16 @@ async function saveDraft(type) {
   const subj = document.getElementById('subj-' + type).value;
   const body = document.getElementById('body-' + type).value;
   if (!subj && !body) { alert('先にメールを生成してください。'); return; }
-  const toVal = document.getElementById('to-' + type) ? document.getElementById('to-' + type).value : '';
+
+  // To欄：画面の入力値を優先、なければ選択中の案件のemailを使用
+  let toVal = document.getElementById('to-' + type) ? document.getElementById('to-' + type).value : '';
+  if (!toVal) {
+    const selId = type === 'confirm' ? 'sel-case' : 'sel-case2';
+    const idx = document.getElementById(selId)?.value;
+    if (idx !== '' && idx !== undefined) {
+      toVal = cases[parseInt(idx)]?.email || '';
+    }
+  }
   const ccVal = document.getElementById('cc-' + type) ? document.getElementById('cc-' + type).value : '';
 
   const lines = ['Content-Type: text/plain; charset="UTF-8"', 'MIME-Version: 1.0'];
