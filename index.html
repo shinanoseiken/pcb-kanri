@@ -57,7 +57,7 @@ input,select,textarea{width:100%;font-size:13px;padding:8px 10px;border:1px soli
 textarea{resize:vertical;min-height:60px;}
 .screen{display:none;}
 .screen.active{display:block;}
-.op-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.op-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
 /* ① op-cardの余白も縮小 */
 .op-card{border:1px solid #e8e8e4;border-radius:8px;padding:10px;}
 .op-title{font-size:13px;font-weight:500;margin-bottom:4px;}
@@ -90,16 +90,16 @@ textarea{resize:vertical;min-height:60px;}
 </div>
 
 <div class="tabs">
-  <button class="tab active" onclick="showTab('cases',this)">案件一覧</button>
-  <button class="tab" onclick="showTab('completed',this)">完了リスト</button>
+  <button class="tab active" onclick="showTab('ops',this)">操作パネル</button>
+  <button class="tab" onclick="showTab('cases',this)">案件一覧</button>
   <button class="tab" onclick="showTab('vendors',this)">外注先リスト</button>
-  <button class="tab" onclick="showTab('ops',this)">操作パネル</button>
+  <button class="tab" onclick="showTab('completed',this)">完了リスト</button>
 </div>
 
 <div class="content">
 
 <!-- 案件一覧 -->
-<div id="screen-cases" class="screen active">
+<div id="screen-cases" class="screen">
   <div class="alert" id="main-alert"></div>
   <div class="metrics">
     <div class="metric"><div class="metric-label">対応中</div><div class="metric-val" id="m-recv">0</div></div>
@@ -195,7 +195,7 @@ textarea{resize:vertical;min-height:60px;}
 </div>
 
 <!-- 操作パネル -->
-<div id="screen-ops" class="screen">
+<div id="screen-ops" class="screen active">
   <div class="card">
     <div class="card-title" style="margin-bottom:16px;">メール操作</div>
     <div class="op-grid">
@@ -498,8 +498,8 @@ ${mailText}
     candidates.forEach((c, i) => {
       const shortMemo = c.memo && c.memo.length > 50 ? c.memo.slice(0, 50) + '...' : (c.memo || '');
       const displayPerson = c.person || c.senderName || c.from.split('@')[0];
-      // 重複チェック：同じemailが既に登録済みか確認
-      const isDuplicate = cases.some(existing => existing.email && existing.email === c.from);
+      // 重複チェック：同じ件名が既に登録済みか確認
+      const isDuplicate = cases.some(existing => existing.subject && existing.subject === c.subject);
       const registerBtn = isDuplicate
         ? `<button class="btn" style="font-size:12px;cursor:default;color:#888;" disabled>登録済み</button>`
         : `<button class="btn btn-primary" style="font-size:12px;" onclick="registerCaseFromMail(${i})">この内容で案件登録する</button>`;
@@ -546,17 +546,18 @@ function toggleCandidate(i) {
 
 function registerCaseFromMail(i) {
   const c = window._mailCandidates[i];
-  // 重複チェック
-  if (cases.some(existing => existing.email && existing.email === c.from)) {
-    alert(`「${c.company}」はすでに登録済みです。`);
+  // 重複チェック（件名ベース）
+  if (cases.some(existing => existing.subject && existing.subject === c.subject)) {
+    alert(`同じ件名「${c.subject}」の案件はすでに登録済みです。`);
     return;
   }
   const personName = c.person || c.senderName || c.from.split('@')[0];
   const rawAddr = c.rawReplyTo || c.rawFrom || '';
   const emailAddr = rawAddr.match(/<([^>]+)>/) ? rawAddr.match(/<([^>]+)>/)[1] : (c.from || '');
-  // 案件カラーをランダムで割り当て
+  // 同じ件名の既存案件があれば色を引き継ぐ、なければランダム
   const COLORS = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#84cc16'];
-  const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+  const existingCase = cases.find(existing => existing.subject && existing.subject === c.subject);
+  const color = existingCase ? existingCase.color : COLORS[Math.floor(Math.random() * COLORS.length)];
   cases.push({
     id: Date.now(),
     company: c.company || '（要確認）',
@@ -568,7 +569,8 @@ function registerCaseFromMail(i) {
     deadline: '',
     status: 'recv',
     memo: c.memo || '',
-    lastMailBody: c.bodyText || ''
+    lastMailBody: c.bodyText || '',
+    subject: c.subject || ''
   });
   save();
   renderCases();
