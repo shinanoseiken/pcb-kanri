@@ -286,6 +286,7 @@ textarea{resize:vertical;min-height:60px;}
       </div>
     </div>
     <div><label>メモ・備考</label><textarea id="ec-memo" style="min-height:60px;"></textarea></div>
+    <div style="margin-top:8px;"><label>CC</label><input id="ec-cc" type="email" placeholder="cc@example.com"></div>
     <div class="modal-btns">
       <button class="btn" onclick="document.getElementById('case-edit-modal').classList.remove('active')">キャンセル</button>
       <button class="btn btn-primary" onclick="saveCaseEdit()">保存する</button>
@@ -704,13 +705,14 @@ function openCaseEdit(i){
   document.getElementById('ec-deadline').value=c.deadline||'';
   document.getElementById('ec-status').value=c.status;
   document.getElementById('ec-email').value=c.email||'';
+  document.getElementById('ec-cc').value=c.cc||'';
   document.getElementById('ec-memo').value=c.memo||'';
   document.getElementById('case-edit-modal').classList.add('active');
 }
 
 function saveCaseEdit(){
   const i=parseInt(document.getElementById('edit-case-idx').value);
-  cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,email:document.getElementById('ec-email').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
+  cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,email:document.getElementById('ec-email').value,cc:document.getElementById('ec-cc').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
   save();document.getElementById('case-edit-modal').classList.remove('active');renderCases();updateCaseSelects();
 }
 
