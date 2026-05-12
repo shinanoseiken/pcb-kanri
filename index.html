@@ -91,6 +91,7 @@ textarea{resize:vertical;min-height:60px;}
 
 <div class="tabs">
   <button class="tab active" onclick="showTab('cases',this)">案件一覧</button>
+  <button class="tab" onclick="showTab('completed',this)">完了リスト</button>
   <button class="tab" onclick="showTab('vendors',this)">外注先リスト</button>
   <button class="tab" onclick="showTab('ops',this)">操作パネル</button>
 </div>
@@ -145,6 +146,18 @@ textarea{resize:vertical;min-height:60px;}
     </div>
     <table><thead><tr><th>客先</th><th>担当者</th><th>種別</th><th>納期</th><th>ステータス</th><th>操作</th></tr></thead>
     <tbody id="case-tbody"></tbody></table>
+  </div>
+</div>
+
+<!-- 完了リスト -->
+<div id="screen-completed" class="screen">
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">完了リスト</span>
+    </div>
+    <table><thead><tr><th>客先</th><th>担当者</th><th>種別</th><th>納期</th><th>メモ</th><th>操作</th></tr></thead>
+    <tbody id="completed-tbody"></tbody></table>
+    <div id="completed-empty" class="empty">完了した案件はありません</div>
   </div>
 </div>
 
@@ -471,7 +484,7 @@ ${mailText}
       );
       const rawFrom = matched ? matched.from : c.from;
       const senderName = extractSenderName(rawFrom);
-      return { ...c, senderName, rawFrom, rawCc: matched?.cc || '', rawReplyTo: matched?.replyTo || '' };
+      return { ...c, senderName, rawFrom, rawCc: matched?.cc || '', rawReplyTo: matched?.replyTo || '', bodyText: matched?.bodyText || '' };
     });
 
     if (candidates.length === 0) {
@@ -554,7 +567,8 @@ function registerCaseFromMail(i) {
     type: c.type || '基板設計',
     deadline: '',
     status: 'recv',
-    memo: c.memo || ''
+    memo: c.memo || '',
+    lastMailBody: c.bodyText || ''
   });
   save();
   renderCases();
@@ -602,6 +616,7 @@ function showTab(t,btn){
   document.getElementById('screen-'+t).classList.add('active');
   btn.classList.add('active');
   if(t==='ops')updateCaseSelects();
+  if(t==='completed')renderCompleted();
 }
 
 function toggleForm(id){const f=document.getElementById(id);f.style.display=f.style.display==='none'?'block':'none';}
@@ -616,15 +631,32 @@ function typeBadge(t){
   return r||t;
 }
 
+function renderCompleted(){
+  const tb=document.getElementById('completed-tbody');
+  const em=document.getElementById('completed-empty');
+  tb.innerHTML='';
+  const done=cases.filter(c=>c.status==='comp');
+  if(done.length===0){em.style.display='block';return;}
+  em.style.display='none';
+  done.forEach((c)=>{
+    const i=cases.indexOf(c);
+    const color=c.color||'#3b82f6';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="font-weight:500;border-left:8px solid ${color};padding-left:8px;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td style="font-size:12px;color:#888;max-width:200px;">${c.memo||'—'}</td><td><button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+
 function renderCases(){
   const tb=document.getElementById('case-tbody');
   tb.innerHTML='';
-  if(cases.length===0){tb.innerHTML='<tr><td colspan="6" class="empty">案件がありません</td></tr>';}
-  cases.forEach((c,i)=>{
+  const active=cases.filter(c=>c.status!=='comp');
+  if(active.length===0){tb.innerHTML='<tr><td colspan="6" class="empty">案件がありません</td></tr>';}
+  active.forEach((c)=>{
+    const i=cases.indexOf(c);
     const tr=document.createElement('tr');
-    // ② 操作列をflexで折り返し対応
     const color=c.color||'#3b82f6';
-    tr.innerHTML=`<td style="font-weight:500;border-left:4px solid ${color};padding-left:8px;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td>${statusBadge(c.status)}</td><td><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;"><select style="font-size:11px;padding:3px 6px;border:1px solid #e8e8e4;border-radius:4px;" onchange="changeStatus(${i},this.value)"><option value="">変更</option><option value="recv">受付済</option><option value="wait">返信待ち</option><option value="quote">見積依頼中</option><option value="comp">完了</option></select><button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button><button class="btn btn-edit" style="font-size:11px;padding:3px 8px;" onclick="openCaseEdit(${i})">編集</button></div></td>`;
+    tr.innerHTML=`<td style="font-weight:500;border-left:8px solid ${color};padding-left:8px;">${c.company}</td><td>${c.person}</td><td>${typeBadge(c.type)}</td><td style="font-size:12px;color:#888;">${c.deadline||'—'}</td><td>${statusBadge(c.status)}</td><td><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;"><select style="font-size:11px;padding:3px 6px;border:1px solid #e8e8e4;border-radius:4px;" onchange="changeStatus(${i},this.value)"><option value="">変更</option><option value="recv">受付済</option><option value="wait">返信待ち</option><option value="quote">見積依頼中</option><option value="comp">完了</option></select><button class="btn" style="font-size:11px;padding:3px 8px;" onclick="deleteCase(${i})">削除</button><button class="btn btn-edit" style="font-size:11px;padding:3px 8px;" onclick="openCaseEdit(${i})">編集</button></div></td>`;
     tb.appendChild(tr);
   });
   document.getElementById('m-recv').textContent=cases.filter(c=>c.status==='recv').length;
@@ -635,6 +667,7 @@ function renderCases(){
   const al=document.getElementById('main-alert');
   if(alerts.length>0){al.style.display='block';al.textContent='⚠ 対応中の案件：'+alerts.map(c=>c.company).join('、');}
   else al.style.display='none';
+  renderCompleted();
 }
 
 function addCase(){
@@ -718,7 +751,7 @@ function updateCaseSelects(){
   ['sel-case','sel-case2'].forEach(id=>{
     const s=document.getElementById(id);
     s.innerHTML='<option value="">案件を選択...</option>';
-    cases.forEach((c,i)=>s.innerHTML+=`<option value="${i}">● ${c.company}（${c.person}）</option>`);
+    cases.filter(c=>c.status!=='comp').forEach((c)=>{const i=cases.indexOf(c);s.innerHTML+=`<option value="${i}">● ${c.company}（${c.person}）</option>`;});
   });
 }
 
@@ -738,7 +771,8 @@ async function runAI(type){
     const idx=document.getElementById('sel-case').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
     currentCase=cases[parseInt(idx)];
-    prompt=`以下の案件について、客先への確認メール文を生成してください。\n\n客先：${currentCase.company}\n担当者：${currentCase.person}\n案件種別：${currentCase.type}\n備考・不足情報：${currentCase.memo||'なし'}\n\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文は冒頭の宛名なしで本文のみ。冒頭の宛名は自動挿入されます）${mailRules}`;
+    const mailBodyRef = currentCase.lastMailBody ? `\n\n【受信メール本文（返信時の参考）】\n${currentCase.lastMailBody.slice(0,400)}` : '';
+    prompt=`以下の案件について、客先への返信メール文を生成してください。\n\n客先：${currentCase.company}\n担当者：${currentCase.person}\n案件種別：${currentCase.type}\n備考・不足情報：${currentCase.memo||'なし'}${mailBodyRef}\n\n受信メールの内容を踏まえた自然な返信文を生成してください。\n以下の形式で生成してください：\n件名：（件名をここに）\n\n（本文は冒頭の宛名なしで本文のみ。冒頭の宛名は自動挿入されます）${mailRules}`;
   } else if(type==='estimate'){
     const idx=document.getElementById('sel-case2').value;
     if(idx===''){alert('案件を選択してください');genEl.style.display='none';return;}
