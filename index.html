@@ -700,7 +700,7 @@ function openCaseEdit(i){
 function saveCaseEdit(){
   const i=parseInt(document.getElementById('edit-case-idx').value);
   cases[i]={...cases[i],company:document.getElementById('ec-company').value,person:document.getElementById('ec-person').value,email:document.getElementById('ec-email').value,type:document.getElementById('ec-type').value,deadline:document.getElementById('ec-deadline').value,status:document.getElementById('ec-status').value,memo:document.getElementById('ec-memo').value};
-  save();document.getElementById('case-edit-modal').classList.remove('active');renderCases();
+  save();document.getElementById('case-edit-modal').classList.remove('active');renderCases();updateCaseSelects();
 }
 
 function renderVendors(){
